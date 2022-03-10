@@ -1,0 +1,25 @@
+Package: aardvark
+Type: Package
+Title: An Automated Reversion Detector for Variants Affecting Resistance Kinetics
+Version: 0.2.0
+Author: David Quigley
+Maintainer: David Quigley <david.quigley@ucsf.edu>
+Description: Realigns BAM files containing reversions to count and analyze them.
+Depends: R (>= 3.5)
+License: MIT + file LICENSE
+Encoding: UTF-8
+LazyData: true
+Imports:
+    S4Vectors,
+    Rsamtools,
+    Biostrings,
+    stringr,
+    BSgenome.Hsapiens.UCSC.hg38,
+    GenomicAlignments,
+    GenomicRanges,
+    ensembldb,
+    IRanges,
+    biomaRt,
+    EnsDb.Hsapiens.v86,
+    testthat
+RoxygenNote: 7.1.2

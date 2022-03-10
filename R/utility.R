@@ -1,0 +1,131 @@
+#' Create new hash
+#'
+hsh_new = function(){
+    new.env(hash=TRUE, parent=emptyenv())
+}
+
+#' Test whether key exists in hash H
+#' @param H hash object
+#' @param key key to check
+hsh_in = function(H, key){
+    exists(key, H)
+}
+
+#' Return value of key in hash H
+#' @param H hash object
+#' @param key key to set
+#' @param na.if.not.found If key not in H and TRUE, return NA; if FALSE, raise an error
+hsh_get = function( H, key, na.if.not.found = FALSE ){
+    if( length(key)==1 ){
+        if( na.if.not.found ){
+            if( exists(key, H) )
+                get(key, H)
+            else
+                NA
+        }
+        else{
+            get(key, H)
+        }
+    }
+    else{
+        results = rep(0, length(key) )
+        if( !na.if.not.found ){
+            for(i in 1:length(key) ){
+                if( exists(key[i], H) ){
+                    results[i] = get(key[i], H )
+                }
+                else{
+                    results[i] = NA
+                }
+            }
+        }
+        else{
+            for(i in 1:length(key) ){
+                results[i] = get(key[i], H )
+            }
+        }
+        results
+    }
+}
+
+#' Set key to value in hash H
+#' @param H hash object
+#' @param key key to set
+#' @param value new value of key in H
+hsh_set = function( H, key, value ){
+    assign(key, value, envir=H)
+}
+
+
+#' return indices into A and B restricted to perfect matches where idx.A[i] == idx.B[i] for each i in matched pairs
+#'
+#' @param A vector
+#' @param B vector
+#' @param allow.multiple.B If true, A->B can be one to many; otherwise return first match
+match.idx=function(A, B, allow.multiple.B = FALSE){
+    if( allow.multiple.B ){
+        idx.B = which(B %in% A)
+        idx.A = match(B[idx.B], A)
+    }
+    else{
+        in.both = intersect(A,B)
+        idx.A = match(in.both, A)
+        idx.B = match(in.both, B)
+    }
+    C= data.frame(idx.A, idx.B)
+    if( sum( A[ C$idx.A ] != B[ C$idx.B] )>0 )
+        stop("ERROR! At least one in idx.A not the same as matched item in idx.B")
+    C
+}
+
+
+#' Returns reverse complement of a vector of A,C,G,T
+#' @param ts_fwd character string of transcript to generate the reverse complement
+#' @return reverse complement vector of ts_fwd
+#'
+reverse_complement = function( ts_fwd ){
+    ts_rev = vector(mode="character", length=length( ts_fwd ) )
+    ctr=1
+    for(i in seq(from=length( ts_fwd ), to=1, by=-1)){
+        if( ts_fwd[i]=="A" ){
+            ts_rev[ctr] = "T"
+        }else if( ts_fwd[i]=="C" ){
+            ts_rev[ctr] = "G"
+        }else if( ts_fwd[i]=="G" ){
+            ts_rev[ctr] = "C"
+        }else{
+            ts_rev[ctr] = "A"}
+        ctr=ctr+1
+    }
+    ts_rev
+}
+
+#' Remove an arbitrary row from a dataframe and return the result
+#
+#' @param df dataframe to modify
+#' @param row_id_to_remove row to remove
+remove_row = function( df, row_id_to_remove ){
+    if( row_id_to_remove > dim(df)[1]){
+        stop( "row_id_to_remove is larger than dimension of df")
+    }
+    df[ setdiff( 1:dim(df)[1], row_id_to_remove), ]
+}
+
+#' replace an existing row with the contents of df_new (may be multiple rows)
+#'
+#' @param df dataframe to modify
+#' @param row_id_to_replace row to replace
+#' @param df_new new dataframe, columns must match df
+replace_row = function( df, row_id_to_replace, df_new ){
+    if( dim(df)[1] == 1 ){
+        df_new
+    }else if( row_id_to_replace == 1) {
+        rbind( df_new, df[2: dim(df)[1],] )
+    }else if( row_id_to_replace == dim(df)[1] ){
+        rbind( df[1:(dim(df)[1]-1),], df_new )
+    }else{
+        rbind( df[ 1 : (row_id_to_replace-1),],
+               df_new,
+               df[ (row_id_to_replace+1) : dim(df)[1] , ])
+    }
+}
