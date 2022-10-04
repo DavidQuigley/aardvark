@@ -98,4 +98,21 @@ test_that("alignment works", {
     expect_equal( x[4], "G" )
     expect_equal( x[5], "T" )
 
+    s_ref = "TTCTT"
+    s_alt = "T"
+    RA = convert.VCF.REFALT.to.dash.format( s_ref, s_alt )
+    expect_equal( length( RA ), 2 )
+    expect_equal( RA$REF, "TTCTT" )
+    expect_equal( RA$ALT, "T----" )
+    s_ref = "T"
+    s_alt = "TTCTT"
+    RA = convert.VCF.REFALT.to.dash.format( s_ref, s_alt )
+    expect_equal( RA$REF, "T----" )
+    expect_equal( RA$ALT, "TTCTT" )
+    s_ref = "ACT"
+    s_alt = "GAG"
+    RA = convert.VCF.REFALT.to.dash.format( s_ref, s_alt )
+    expect_equal( RA$REF, "ACT" )
+    expect_equal( RA$ALT, "GAG" )
+
 } )

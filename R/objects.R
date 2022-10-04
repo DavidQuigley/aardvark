@@ -93,9 +93,11 @@ AW_get_nucleotide = function( AW, pos ){
     as.character( AW$seq[ (pos - AW$start + 1) ] )
 }
 
-
-convert_UTF = function( x ){
-    utf8ToInt( as.character( x ) ) - 33 # sanger conversion
+#' convert UTF format to integers, used for sanger conversion
+#' @param utf8 input string
+#' @return converted to integer
+convert_UTF = function( utf8 ){
+    utf8ToInt( as.character( utf8 ) ) - 33 # sanger conversion
 }
 
 #' Load a BAM file into memory
@@ -196,7 +198,6 @@ Read = function( qname, cigar, chrom, pos, seq, qual ){
                pos = pos,
                pos_original = pos,
                seq = seq,
-               #qualities = as.integer( qual ),
                qualities = qual,
                cigar_rle = GenomicAlignments::cigarToRleList( cigar )[[1]],
                positions = rep(0, length( seq ) ),
@@ -262,9 +263,7 @@ Read = function( qname, cigar, chrom, pos, seq, qual ){
         }
 
     }
-
-    #vec_qual = as.integer(qual) # TODO, this is redundant
-    vec_qual = read$qualities
+    vec_qual = rd$qualities
     for(i in 1:dim(rd$cigar_ranges)[1] ){
         start_end_range = rd$cigar_ranges$start[i] : rd$cigar_ranges$end[i]
         if( rd$cigar_ranges$cigar_code[i] == "M" ){
@@ -345,9 +344,10 @@ TranscriptData = function( biomart_object, ensdb_object, transcript_id ){
 #' @param pos start position of the mutation in on chromsosome chrom
 #' @param seq_ref character string indicating the reference sequence
 #' @param seq_alt character string indicating the mutation sequence
+#' @param transcript an aardvark::TranscriptData object used to assess the impact of the mutation
 #' @returns a list with elements that describe the consequences of the mutation
 #' @export
-Mutation = function( chrom, pos, seq_ref, seq_alt ){
+Mutation = function( chrom, pos, seq_ref, seq_alt, transcript ){
 
     # VCF format would encode a two nt deletion as REF=CTT ALT=C pos=32339657
     # we store that as REF=TT ALT=-- pos 32339658, with incremented position
@@ -358,6 +358,9 @@ Mutation = function( chrom, pos, seq_ref, seq_alt ){
     vec_alt = strsplit( seq_alt, "")[[1]]
     n_ref = length( vec_ref )
     n_alt = length( vec_alt )
+    is_splice_variant = FALSE
+    total_frameshift = 0
+    pos_original = pos
 
     if( vec_ref[1] == vec_alt[1] ){
         if( n_ref < n_alt ){
@@ -366,6 +369,7 @@ Mutation = function( chrom, pos, seq_ref, seq_alt ){
             vec_alt = c( vec_alt, rep("-", n_ref-n_alt) ) # deletion, pad alt
         }
         # trim leading nucleotide and advance to position where different
+        # this is only relevant if variant is an indel; if missense, should use pos_original
         vec_ref = vec_ref[2:length(vec_ref)]
         vec_alt = vec_alt[2:length(vec_alt)]
         pos = pos + 1
@@ -398,6 +402,9 @@ Mutation = function( chrom, pos, seq_ref, seq_alt ){
     }
     rr$cigar_code = cigar_code
 
+    if( mutation_class=="mismatch" ){
+        pos = pos_original
+    }
     cigar_ranges = data.frame(
         start=c(1),
         end=c(dim(rr)[1]),
@@ -407,13 +414,26 @@ Mutation = function( chrom, pos, seq_ref, seq_alt ){
         ref_start = rr$pos[1],
         ref_end = rr$pos[ dim(rr)[1] ],
         stringsAsFactors = FALSE)
+
+    # assess whether this mutation impacts a splice site
+    idx_in_ts = which( transcript$nucleotides$pos >= cigar_ranges$ref_start[1] &
+                       transcript$nucleotides$pos <= cigar_ranges$ref_end[1] )
+    is_splice_variant = sum( transcript$nucleotides$is_splice[ idx_in_ts ] ) > 0
+
+    if( mutation_class=="deletion"){
+        # if deletion affects splice site it doesn't cause a frameshift
+        total_frameshift = -1 * sum( transcript$nucleotides$exon_id[ idx_in_ts ] != "" )
+    }else if( mutation_class=="insertion"){
+        total_frameshift = sum( rr$cigar_code=="I" )
+    }
     list( chrom = chrom,
           pos = pos,
           cigar_rle = rle( cigar_code ),
           location = rr,
           mutation_class = mutation_class,
           cigar_ranges = cigar_ranges,
-          total_frameshift = sum( rr$cigar_code=="I" ) - sum( rr$cigar_code=="D") )
+          is_splice_variant = is_splice_variant,
+          total_frameshift = total_frameshift )
 }
 
 

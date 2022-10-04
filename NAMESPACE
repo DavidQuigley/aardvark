@@ -8,6 +8,7 @@ export( Mutation )
 export( realign_read )
 export( assess_reversion )
 
+importFrom("utils", "write.table")
 importFrom("graphics", "axis", "box", "rect")
 importFrom("stats", "end", "start")
 importFrom("S4Vectors", "runValue")

@@ -129,3 +129,29 @@ replace_row = function( df, row_id_to_replace, df_new ){
                df[ (row_id_to_replace+1) : dim(df)[1] , ])
     }
 }
+
+
+#' convert VCF-style REF and ALT to equal length with dashes for indels
+#'
+#' e.g. a REF,ALT pair TTCTT,T -> TTCTT,T----
+#' e.g. a REF,ALT pair T,TTCTT -> T----, TTCTT
+#' e.g. a REF,ALT pair TCT, TAG -> TCT,TAG
+#'
+#' @param s_ref reference nucleotide string
+#' @param s_alt alternate nucleotide string
+#' @export
+#' @returns list with values REF, ALT for new formatting
+convert.VCF.REFALT.to.dash.format = function( s_ref, s_alt ){
+    v_ref = strsplit(s_ref,"")[[1]]
+    v_alt = strsplit(s_alt,"")[[1]]
+    n = max( c( length( v_ref ), length( v_alt ) ) )
+    v_ref_final = rep( "-",  n )
+    v_alt_final = rep( "-",  n )
+    for( i in 1:length( v_ref )){
+        v_ref_final[i] = v_ref[i]
+    }
+    for( i in 1:length( v_alt )){
+        v_alt_final[i] = v_alt[i]
+    }
+    list( REF = paste( v_ref_final, collapse=""), ALT = paste(v_alt_final, collapse="") )
+}

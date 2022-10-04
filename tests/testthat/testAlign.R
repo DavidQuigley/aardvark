@@ -4,9 +4,10 @@ context("alignment code")
 #ensembl = useDataset("hsapiens_gene_ensembl", mart = useMart("ensembl") )
 #transcript_BRCA2 = TranscriptData( ensembl, EnsDb.Hsapiens.v86, "ENST00000380152" )
 #transcript_BRCA1 = TranscriptData( ensembl, EnsDb.Hsapiens.v86, "ENST00000357654" )
+#transcript_ATM = TranscriptData( ensembl, EnsDb.Hsapiens.v86, "ENST00000452508" )
 #save( transcript_BRCA2, file='/notebook/code/aardvark/data/transcript_BRCA2.RData', compress="bzip2")
 #save( transcript_BRCA1, file='/notebook/code/aardvark/data/transcript_BRCA1.RData', compress="bzip2")
-
+#save( transcript_ATM, file='/notebook/code/aardvark/data/transcript_ATM.RData', compress="bzip2")
 test_that("alignment works", {
     pkg = "aardvark"
 
@@ -16,7 +17,7 @@ test_that("alignment works", {
 ################################################################################################################
 
 
-GM = aardvark::Mutation( chrom="chr13", pos=32339657, seq_ref = "CTT", seq_alt = "C")
+GM = aardvark::Mutation( chrom="chr13", pos=32339657, seq_ref = "CTT", seq_alt = "C", transcript=transcript_BRCA2)
 gr_pathogenic = aardvark::genomicRangesFromMutation(GM)
 AW = aardvark::AlignmentWindow( BSgenome.Hsapiens.UCSC.hg38, chrom="chr13",
                                 GM$pos - 3000, GM$pos + 3000,
@@ -51,6 +52,10 @@ expect_equal( rd$cigar_ranges$ref_start[3], 32340564)
 expect_equal( rd$cigar_ranges$ref_end[3],   32340642)
 expect_equal( rd$qualities[70], 25)
 expect_equal( rd$qualities[145], 25)
+
+
+
+
 
 # chr13:32,339,355-32,339,426
 # chr13:32,340,564-32,340,642
@@ -414,7 +419,6 @@ expect_equal( rd$cigar_ranges$end[3], 12 )
 expect_equal( rd$cigar_ranges$ref_start[3], 32339660 )
 expect_equal( rd$cigar_ranges$ref_end[3], 32339669 )
 
-
 # Test code in assess_reversion to check for homopolymers
 # this deletion is in a homopolymer and should be marked as blacklisted
 rd = aardvark::Read( qname="A00887:299:HWFYGDSXY:2:1309:14787:31704",
@@ -424,7 +428,7 @@ rd = aardvark::Read( qname="A00887:299:HWFYGDSXY:2:1309:14787:31704",
                      seq = DNAString("GTCTAACAGCTATTCCTACCATTCTGATGAGGTATATAATGATTCAGGATATCTCTCAAAAAATAAACTTGATTCTGGTATTGAGCCAGTATTGAAGAATGTTGAAGATCAAAAAACACTAGTTTTTCCAAAGTAATATCCAATGTAAAAG"),
                      qual = rep(37, 151) )
 
-rd = aardvark::assess_reversion(rd, transcript_BRCA2, GM, min_nt_qual=20, gr_pathogenic = gr_pathogenic, gr_exclude = AW$homopolymer_regions)
+rd = aardvark::assess_reversion(rd, transcript_BRCA2, pathogenic=GM, align_window=AW, min_nt_qual=20, gr_pathogenic = gr_pathogenic, gr_exclude = AW$homopolymer_regions)
 expect_equal( rd$evidence, "read_harbors_variant_in_excluded_region" )
 
 # this is a classic reversion allele with two deletions
@@ -439,7 +443,7 @@ read = aardvark::Read( qname="A00887:299:HWFYGDSXY:2:2235:15501:11929",
                        seq=DNAString("CATTCTGATGAGGTATATAATGATATCTCTCAAAAAATAAACGATTCTGGTATTGAGCCAGTATTGAAGAATGTTGAAGATCAAAAAAACACTAGTTTTTCCAAAGTAATATCCAATGTAAAAGATGCAAATGCATACCCACAAACTGTAA"),
                        qual=rep(37, 151) )
 rd = aardvark::realign_read( read, AW, gr_pathogenic, allow_insertions_in_realign=TRUE)
-rd = aardvark::assess_reversion(rd, transcript_BRCA2, GM, min_nt_qual=20, gr_pathogenic = gr_pathogenic, gr_exclude = AW$homopolymer_regions)
+rd = aardvark::assess_reversion(rd, transcript_BRCA2, GM, AW, min_nt_qual=20, gr_pathogenic = gr_pathogenic, gr_exclude = AW$homopolymer_regions)
 expect_equal( rd$evidence, "reversion_read_includes_pathogenic_variant" )
 
 # This looks like it might be a reversion allele since there's a deletion that would put the ORF back in-frame,
@@ -456,7 +460,7 @@ read = aardvark::Read( qname="A00887:299:HWFYGDSXY:2:2235:15501:11929",
                        seq=DNAString("GATTCTGGTATTGAGCCAGTATTAAGAATGTTGAAGATCAAAAAAACACTAGTTTTTCCAAAGTAATATCCAATGTAAAAGATGCAAATGCATACCCACA"),
                        qual=rep(37, 100) )
 rd = aardvark::realign_read( read, AW, gr_pathogenic, allow_insertions_in_realign=TRUE)
-rd = aardvark::assess_reversion(rd, transcript_BRCA2, GM, min_nt_qual=20, gr_pathogenic = gr_pathogenic, gr_exclude = AW$homopolymer_regions)
+rd = aardvark::assess_reversion(rd, transcript_BRCA2, GM, AW,  min_nt_qual=20, gr_pathogenic = gr_pathogenic, gr_exclude = AW$homopolymer_regions)
 expect_equal( rd$evidence, "read_not_informative" )
 
 
@@ -474,7 +478,81 @@ read = aardvark::Read( qname="A00887:299:HWFYGDSXY:2:2235:15501:11929",
                        seq=DNAString("GATCTGGTATTGAGCCAGTATTGAAGAATGTTGAAGATCAAAAAAACACTAGTTTTTCCAAAGTAATATCCAATGTAAAAGATGCAAATGCATACCCACA"),
                        qual=rep(37, 100) )
 rd = aardvark::realign_read( read, AW, gr_pathogenic, allow_insertions_in_realign=TRUE)
-rd = aardvark::assess_reversion(rd, transcript_BRCA2, GM, min_nt_qual=20, gr_pathogenic = gr_pathogenic, gr_exclude = AW$homopolymer_regions)
+rd = aardvark::assess_reversion(rd, transcript_BRCA2, GM, AW, min_nt_qual=20, gr_pathogenic = gr_pathogenic, gr_exclude = AW$homopolymer_regions)
 expect_equal( rd$evidence, "reversion_read_does_not_include_pathogenic_variant" )
+
+
+# intersects germline locus perfect match
+# AATAAACTTGATTCTGGTA  ref
+# AATAAAC--GATTCTGGTA  germline
+#    AAAC--GATTCTGGTA  read
+
+
+read = aardvark::Read(
+    qname="test",
+    chrom="chr13",
+    pos=32339654,
+    seq=DNAString("AAACGATTCTGGTA"),
+    qual=c(37,37,37,37,37,37,37,37,37,37,37,37,37,37),
+    cigar="4M2D10M")
+rd = aardvark::realign_read( read, AW, gr_pathogenic, allow_insertions_in_realign=TRUE)
+rd = aardvark::assess_reversion(rd, transcript_BRCA2, GM, AW, min_nt_qual=20, gr_pathogenic = gr_pathogenic, gr_exclude = AW$homopolymer_regions)
+expect_equal( rd$evidence, "read_harbors_pathogenic_variant_no_reversion")
+expect_equal( rd$pathogenic_is_deleted, FALSE)
+
+
+read = aardvark::Read( qname="A00887:299:HWFYGDSXY:2:2235:15501:11929",
+                       cigar="73M1D28M",
+                       chrom="chr11",
+                       pos=108288903,
+                       seq=DNAString("ATTTTGGAAGTTCACTGGTCTATGAACAAAACTTTTTAAAACGATGACTGTATTTTTTCCCTTAACTCTGTTAGGATTTGGATCCTGCTCCTAATCCACCA"),
+                       qual=rep(37, 101) )
+GM = aardvark::Mutation( chrom="chr11", pos=108288975, seq_ref = "AG", seq_alt = "A", transcript=transcript_ATM)
+gr_pathogenic = aardvark::genomicRangesFromMutation(GM)
+AW = aardvark::AlignmentWindow( BSgenome.Hsapiens.UCSC.hg38, chrom="chr11",
+                                GM$pos - 300, GM$pos + 300,
+                                min_length_for_homopolymer = 5   )
+rd=aardvark::realign_read( read, AW, gr_pathogenic, allow_insertions_in_realign=TRUE)
+rd = assess_reversion( rd, transcript_ATM, GM, AW)
+
+# Test code in assess_reversion to check for homopolymers
+# this insertion is in a homopolymer and should be marked as blacklisted
+rd = aardvark::Read( qname="A00887:299:HWFYGDSXY:2:1309:14787:31704",
+                     cigar="44M1D28M1I27M",
+                     chrom="chr13",
+                     pos=32379813,
+                     seq = DNAString("ACAGAATTTATCATCTTGCAACTTCAAAATCTAAAAGTAAATCTAAAGAGCTAACATACAGTTAGCAGCGACAAAAAAAAACTCAGTATCAACAACTACC"),
+                     qual = rep(37, 100) )
+GM = aardvark::Mutation( chrom="chr13", pos=32379813, seq_ref = "TG", seq_alt = "T", transcript=transcript_BRCA2)
+gr_pathogenic = aardvark::genomicRangesFromMutation(GM)
+AW = aardvark::AlignmentWindow( BSgenome.Hsapiens.UCSC.hg38, chrom="chr13",
+                                GM$pos - 300, GM$pos + 300,
+                                min_length_for_homopolymer = 5   )
+rd = aardvark::assess_reversion(rd, transcript_BRCA2, pathogenic=GM, align_window=AW, min_nt_qual=20, gr_pathogenic = gr_pathogenic, gr_exclude = AW$homopolymer_regions)
+expect_equal( rd$evidence, "read_harbors_variant_in_excluded_region" )
+
+
+
+GM = aardvark::Mutation( chrom="chr17", pos=43093898, seq_ref = "CTT", seq_alt = "C", transcript=transcript_BRCA1)
+gr_pathogenic = aardvark::genomicRangesFromMutation(GM)
+AW = aardvark::AlignmentWindow( BSgenome.Hsapiens.UCSC.hg38, chrom="chr17",
+                                GM$pos - 300, GM$pos + 300,
+                                min_length_for_homopolymer = 5   )
+rd = aardvark::Read( qname="HWI-D00108:1315:HFG52BCX3:1:1104:17461:26128",
+                     cigar="79M21S",
+                     chrom="chr17",
+                     pos=43093800,
+                     seq=DNAString("TTCTTTTTCGAGTGATTCTATTGGGTTAGGATTTTTCTCATTCTGAATAGAATCACCTTTTGTTTTATTCTCATGACCATTCTGCTCCGTTTGGTTAGTT"),
+                     qual=rep(37, 100))
+rd=aardvark::realign_read( rd, AW, gr_pathogenic, allow_insertions_in_realign=TRUE)
+expect_equal( rd$cigar_ranges$ref_start[1], 43093800)
+expect_equal( rd$cigar_ranges$ref_end[1],   43093878)
+expect_equal( rd$cigar_ranges$ref_start[2], 43093879)
+expect_equal( rd$cigar_ranges$ref_end[2],   43093905) # in the actual read this is 43093904
+expect_equal( rd$cigar_ranges$ref_start[3], 43093906) # in the actual read this is 43093905
+expect_equal( rd$cigar_ranges$ref_end[3],   43093925)
+expect_equal( rd$cigar_ranges$width[2], 27)
+rd = aardvark::assess_reversion(rd, transcript_BRCA1, pathogenic=GM, align_window=AW, min_nt_qual=20, gr_pathogenic = gr_pathogenic, gr_exclude = AW$homopolymer_regions)
+expect_equal( rd$evidence, "reversion_read_deletion_spans_pathogenic_variant")
 
 } )

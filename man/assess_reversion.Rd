@@ -8,6 +8,7 @@ assess_reversion(
   read,
   transcript,
   pathogenic,
+  align_window,
   min_nt_qual = 20,
   gr_pathogenic = NULL,
   gr_exclude = NULL
@@ -19,6 +20,8 @@ assess_reversion(
 \item{transcript}{aardvark::TranscriptData object for a gene's transcript}
 
 \item{pathogenic}{aardvark::Mutation object describing pathogenic mutation}
+
+\item{align_window}{aardvark:: aardvark::AlignmentWindow object that holds reference sequence search space for realignment}
 
 \item{min_nt_qual}{Minimum nucleotide quality score to write read sequence as part of translated sequence.
 Reference sequence will be used for nucleotides in the read that are below this quality score.}
@@ -42,6 +45,7 @@ Possible values for the evidence column:
   \item read_not_informative
   \item read_harbors_variant_in_excluded_region (e.g. a possible homopolymer artifact)
   \item read_harbors_pathogenic_variant_no_reversion
+  \item read_harbors_splice_site_mutation_no_reversion (splice mutation may be the pathogenic variant)
   \item reversion_read_includes_pathogenic_variant
   \item reversion_read_deletion_spans_pathogenic_variant
   \item reversion_read_does_not_include_pathogenic_variant

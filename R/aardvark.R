@@ -1,8 +1,7 @@
 # AARDVARK
 # An Automated Reversion Detector for Variants Affecting Resistance Kinetics
 # Install from source:
-# install.packages("/data1/projects/software/aardvark_0.2.0.tar.gz", repos=NULL, type="source")
-
+# install.packages("/data1/opt/software/aardvark_0.2.0.tar.gz", repos=NULL, type="source")
 
 #' Align a nucleotide sequence in a region of the reference
 #'
@@ -36,7 +35,8 @@ realign_sequence_in_region = function( ref_pos, ref_seq, query_str ){
                 idx_end_longest = idx_end_cur
             }
         }else{
-            if( vec_full[i] == vec_ref[i] | vec_full[i] == "-" ){
+            #if( vec_full[i] == vec_ref[i] | vec_full[i] == "-" ){
+            if( (vec_full[i] == vec_ref[i]) & vec_full[i] != "-" ){
                 if( !in_match ){
                     in_match = TRUE
                     idx_start_cur = i
@@ -48,11 +48,12 @@ realign_sequence_in_region = function( ref_pos, ref_seq, query_str ){
 
     # calculate the deletion that was created between the newly aligned
     # region and the previously aligned portion of the read, which starts at ref_pos
+
     list( ref_start = ref_pos + idx_start_longest - 1,
           ref_end = ref_pos + idx_end_longest - 1,
           idx_start=idx_start_longest,
           idx_end=idx_end_longest,
-          longest_alignment = idx_end_longest - idx_start_longest , # DEBUG removed + 1 because it was returning an impossible result of 16 for ctr 3693
+          longest_alignment = idx_end_longest - idx_start_longest ,
           pwa=pwa)
 }
 
@@ -221,7 +222,13 @@ realign_read = function( read,
     }
     if( !clipped_left & !clipped_right ){
         # case where read is not clipped, but aligned with mismatches
-        read = locally_realign_read( read, gr_pathogenic, align_window, near_bound, min_nt_qual, allow_insertions_in_realign, "both" )
+        read = locally_realign_read( read,
+                                     gr_pathogenic,
+                                     align_window,
+                                     near_bound,
+                                     min_nt_qual,
+                                     allow_insertions_in_realign,
+                                     "both" )
     }
 
     read$cigar_ranges = read$cigar_ranges[order( read$cigar_ranges$start, read$cigar_ranges$end), ]
@@ -240,7 +247,10 @@ realign_read = function( read,
             read$qualities[ start_end_range ] = read$qualities[ read$cigar_ranges$start[i] : read$cigar_ranges$end[i]  ]
         }
     }
-    read$encoding = encode_variants( read )
+    read$encoding=""
+    if( read$has_del | read$has_insertion | read$has_realigned_softclipped ){
+        read$encoding = encode_variants( read )
+    }
     read
 }
 
@@ -409,6 +419,7 @@ locally_realign_read = function( read,
     if( ( end(gr_mut) <= mutation_search_right  & end(gr_mut) >= mutation_search_left ) ||
         ( start(gr_mut) >= mutation_search_left & start(gr_mut) <= mutation_search_right ) ){
         vec_read = strsplit( as.character( read$seq ), "")[[1]]
+
         rr_realign = data.frame(
             pos = read$positions[ alignment_idx ],
             read = vec_read[ alignment_idx ],
@@ -492,6 +503,38 @@ locally_realign_read = function( read,
     read
 }
 
+
+#' Assess whether there is a perfect match between aligned and reference that is missing the pathogenic deletion
+#'
+#' @param read Read to modify
+#' @param pathogenic aardvark::Mutation object describing pathogenic mutation
+#' @param gr_pathogenic GenomicRanges location of mutation
+#' @param align_window AlignmentWindow object that holds reference sequence search space for realignment
+#' @return returns TRUE/FALSE
+realign_to_ref_with_pathogenic_deletion = function( read, pathogenic, gr_pathogenic, align_window ){
+    # construct DNAstring from the ref of length(read$seq) from reference at either end of deleted region
+    ref_minus_path_5p = AW_vec( align_window,
+                                pos_start = pathogenic$pos - length(read$seq),
+                                pos_end = pathogenic$pos-1)
+    ref_minus_path_3p = AW_vec( align_window,
+                                pos_start = pathogenic$pos + width(gr_pathogenic),
+                                pos_end = pathogenic$pos + width(gr_pathogenic) + length(read$seq) )
+    ref_minus_path = DNAString( paste( c(ref_minus_path_5p, ref_minus_path_3p), collapse="", sep="" ) )
+    pwa = realign_sequence_in_region( ref_pos = pathogenic$pos - length(read$seq) + 1,
+                                ref_seq = ref_minus_path,
+                                query_str = as.character(read$seq) )
+    # assess whether a perfct match to the pathogenic mutation is present
+    d=data.frame( aligned=strsplit( as.character( aligned(pwa$pwa) ), "" )[[1]],
+                  ref=strsplit( as.character( ref_minus_path ), "" )[[1]],
+                pos = pathogenic$pos - length(read$seq) + 1 : width( aligned(pwa$pwa) )
+                )
+
+    path_pos_start = pathogenic$pos
+    path_pos_end = path_pos_start + length(gr_pathogenic) - 1
+    idx_path = which( d$pos %in% path_pos_start:path_pos_end)
+    as.character( d$aligned[ idx_path ]) == as.character(d$ref[ idx_path ] )
+}
+
 #' Classify a read to assess the evidence that it contains a reversion
 #'
 #' Assesses the evidence that alterations present in a read will result
@@ -501,6 +544,7 @@ locally_realign_read = function( read,
 #' @param read aardvark::Read object to evaluate
 #' @param transcript aardvark::TranscriptData object for a gene's transcript
 #' @param pathogenic aardvark::Mutation object describing pathogenic mutation
+#' @param align_window aardvark:: aardvark::AlignmentWindow object that holds reference sequence search space for realignment
 #' @param min_nt_qual Minimum nucleotide quality score to write read sequence as part of translated sequence.
 #' Reference sequence will be used for nucleotides in the read that are below this quality score.
 #' @param gr_pathogenic GenomicRanges object spanning the pathogenic mutation
@@ -520,40 +564,49 @@ locally_realign_read = function( read,
 #'   \item read_not_informative
 #'   \item read_harbors_variant_in_excluded_region (e.g. a possible homopolymer artifact)
 #'   \item read_harbors_pathogenic_variant_no_reversion
+#'   \item read_harbors_splice_site_mutation_no_reversion (splice mutation may be the pathogenic variant)
 #'   \item reversion_read_includes_pathogenic_variant
 #'   \item reversion_read_deletion_spans_pathogenic_variant
 #'   \item reversion_read_does_not_include_pathogenic_variant
 #' }
 #' @export
-assess_reversion = function( read, transcript, pathogenic, min_nt_qual=20, gr_pathogenic=NULL, gr_exclude=NULL ){
+assess_reversion = function( read, transcript, pathogenic, align_window, min_nt_qual=20, gr_pathogenic=NULL, gr_exclude=NULL ){
 
     read$includes_pathogenic_mutation = FALSE
-    gene_in_frame = TRUE
-    distance_to_germline = NA
+    read$has_splice_mutation = FALSE
     read$evidence = "read_not_informative"
     read$total_frameshift = 0
     read$pathogenic_is_deleted = FALSE
-    single_del_in_excluded = FALSE
+
+    gene_in_frame = TRUE
+    distance_to_germline = NA
+    indel_in_excluded = FALSE
     read_pos_start = read$pos
     read_pos_end =  max(read$positions)
 
-    # TODO: if the read is 151M and downstream of + (or upstream of - strand) then it cannot cause a
-    # reversion, and we can skip translation and converting the quality entirely.
     if( is.null( gr_pathogenic ) ){
-        # for high-througput processing, pass this creating the same GR object repeatedly
+        # to speed up processing, pass gr_pathogenic instead of creating repeatedly
         gr_pathogenic = aardvark::genomicRangesFromMutation( pathogenic )
     }
     for( i in 1:dim( read$cigar_ranges )[1] ){
+
+        # is this piece of cigar an exact match to the pathogenic mutation?
+        if( read$cigar_ranges$cigar_code[i] == pathogenic$cigar_ranges$cigar_code[1] &
+            read$cigar_ranges$ref_start[i] == pathogenic$cigar_ranges$ref_start[1] &
+            read$cigar_ranges$ref_end[i] == pathogenic$cigar_ranges$ref_end[1] ){
+                read$includes_pathogenic_mutation = TRUE
+        }
 
         if( read$cigar_ranges$cigar_code[i] == "D" ){
             del_start = max( c( read$cigar_ranges$ref_start[i], transcript$nucleotides$pos[1] ) )
             del_end = min( c( read$cigar_ranges$ref_end[i], transcript$nucleotides$pos[ length( transcript$nucleotides$pos ) ] ) )
 
+            # Does this deletion overlap with an excluded region (e.g. homopolymer)?
             if( !is.null( gr_exclude ) ){
-                if( del_start == del_end ){
+                if( del_start == del_end ){  # single base del has del_end == del_start
                     gr_del=GenomicRanges::GRanges(seqnames=read$chrom, IRanges::IRanges(del_start, del_end, names = "del") )
                     if( length( findOverlaps( gr_exclude, gr_del ) ) > 0 ){
-                        single_del_in_excluded = TRUE # single base del has del_end == del_start
+                        indel_in_excluded = TRUE
                     }
                 }
             }
@@ -562,22 +615,42 @@ assess_reversion = function( read, transcript, pathogenic, min_nt_qual=20, gr_pa
                                transcript$nucleotides$pos <= del_end )
             n_coding_nt_deleted = sum( transcript$nucleotides$exon_id[ idx_in_ts ] != "" )
             read$total_frameshift = read$total_frameshift - n_coding_nt_deleted
+            read$has_splice_mutation = read$has_splice_mutation |
+                                       sum( transcript$nucleotides$is_splice[ idx_in_ts ] ) > 0
 
-            if( del_start <= start( gr_pathogenic ) & del_end >= end( gr_pathogenic ) ){
-                read$pathogenic_is_deleted = TRUE
-            }else if( read$cigar_ranges$width[i]<0) {
-                if( del_end <= start( gr_pathogenic ) & del_start >= end( gr_pathogenic ) ){
+
+            # TODO: write code explicitly testing that 1nt deletions are not marked as "pathogenic is deleted"
+            if( pathogenic$mutation_class=="deletion" ){
+                # if pathogenic is a deletion, it can only be marked as deleted if either one or the other side
+                # extends farther than the pathogenic deletion.
+                if( ( del_start < start( gr_pathogenic ) & del_end >= end( gr_pathogenic ) ) |
+                    ( del_start <= start( gr_pathogenic ) & del_end > end( gr_pathogenic ) ) ){
                     read$pathogenic_is_deleted = TRUE
                 }
-            }
-            if( pathogenic$mutation_class=="deletion" ){
-                if( del_start == pathogenic$pos[1] &
-                    del_end == pathogenic$location$pos[ length(pathogenic$location$pos ) ] ){
-                    # read with reversion that also includes pathogenic mutation is the strongest evidence
-                    read$includes_pathogenic_mutation = TRUE
+            }else{
+                if( del_start <= start( gr_pathogenic ) & del_end >= end( gr_pathogenic ) ){
+                    read$pathogenic_is_deleted = TRUE
+                }else if( read$cigar_ranges$width[i]<0) {
+                    if( del_end <= start( gr_pathogenic ) & del_start >= end( gr_pathogenic ) ){
+                        read$pathogenic_is_deleted = TRUE
+                    }
                 }
             }
         }else if( read$cigar_ranges$cigar_code[i] == "I"){
+
+            ins_start = max( c( read$cigar_ranges$ref_start[i], transcript$nucleotides$pos[1] ) )
+            ins_end = min( c( read$cigar_ranges$ref_end[i], transcript$nucleotides$pos[ length( transcript$nucleotides$pos ) ] ) )
+            ins_start = ins_start + 1
+            ins_end = ins_end + 1
+            # Does this insertion overlap with an excluded region (e.g. homopolymer)?
+            if( !is.null( gr_exclude ) ){
+                if( ins_start == ins_end ){
+                    gr_ins=GenomicRanges::GRanges(seqnames=read$chrom, IRanges::IRanges(ins_start, ins_end, names = "ins") )
+                    if( length( findOverlaps( gr_exclude, gr_ins ) ) > 0 ){
+                        indel_in_excluded = TRUE # single base del has del_end == del_start
+                    }
+                }
+            }
 
             # if the insertion start point is in or adjacent to an exon, framshift
             idx_in_ts = which( transcript$nucleotides$pos == read$cigar_ranges$ref_start[i] )
@@ -586,22 +659,27 @@ assess_reversion = function( read, transcript, pathogenic, min_nt_qual=20, gr_pa
                 transcript$nucleotides$exon_id[idx_in_ts+1] != ""){
                 read$total_frameshift = read$total_frameshift + read$cigar_ranges$width[i]
             }
-            if( pathogenic$mutation_class=="insertion" ){
-                if( read$cigar_ranges$ref_start[i] == pathogenic$pos[1] &
-                    read$cigar_ranges$ref_end[i] == pathogenic$pos[ length( pathogenic$pos ) ] ){
-                    # read with reversion that also includes pathogenic mutation is the strongest evidence
-                    read$includes_pathogenic_mutation = TRUE
-                }
-            }
+            read$has_splice_mutation = read$has_splice_mutation |
+                sum( transcript$nucleotides$is_splice[ idx_in_ts ] ) > 0
         }
     }
 
-    if( pathogenic$mutation_class=="insertion" | pathogenic$mutation_class=="deletion" ){
-        if( single_del_in_excluded ){
+    if( read$has_splice_mutation ){
+        # If a splice site mutation is still present, this overrides other reversion alterations
+        read$evidence = "read_harbors_splice_site_mutation_no_reversion"
+    }else if( pathogenic$mutation_class=="splice" & !(read$includes_pathogenic_mutation) ){
+        # if pathogenic is splice variant and read does not include that variant, it can't
+        # revert the allele except in very exceptional circumstances (e.g. inserting a new
+        # splice junction) that we can't handle at the moment.
+        read$evidence = "read_not_informative"
+    }else if( pathogenic$mutation_class=="insertion" | pathogenic$mutation_class=="deletion" ){
+        if( indel_in_excluded ){
             read$evidence = "read_harbors_variant_in_excluded_region"
         }else{
-            if( read$includes_pathogenic_mutation & read$total_frameshift  %% 3 == 0 ){
+            if( read$includes_pathogenic_mutation & read$total_frameshift %% 3 == 0 ){
                 read$evidence = "reversion_read_includes_pathogenic_variant"
+            }else if( read$pathogenic_is_deleted & read$total_frameshift %% 3 == 0 ){
+                read$evidence = "reversion_read_deletion_spans_pathogenic_variant"
             }else if( read$total_frameshift != 0 ){
                 AA_sequence = aardvark::translate_cigar( transcript, read, pathogenic, min_nt_qual )
                 transcript_is_inframe = stringr::str_count( as.character( AA_sequence ), stringr::fixed("*") ) == 1
@@ -620,8 +698,40 @@ assess_reversion = function( read, transcript, pathogenic, min_nt_qual=20, gr_pa
         }
     }
 
+    # If 'pathogenic' mutation is in-frame (e.g. 9nt deletion), avoid incorrectly reporting a reversion allele
+    if( ( pathogenic$mutation_class=="deletion" | pathogenic$mutation_class=="insertion" ) &
+        (sum( read$cigar_ranges$cigar_code == "D" | read$cigar_ranges$cigar_code == "I") == 1) &
+        read$includes_pathogenic_mutation ){
+        read$evidence = "read_harbors_pathogenic_variant_no_reversion"
+    }
+
+    # if pathogenic not in-frame (e.g. 2nt del), read is not in-frame, and read includes pathogenic
     if( read$evidence=="read_not_informative" & read$includes_pathogenic_mutation ){
         read$evidence = "read_harbors_pathogenic_variant_no_reversion"
+    }
+
+    # check whether a high-quality alignment that predicts a reversion could be rewritten to be identical to the
+    # pathogenic allele. If so, go with the pathogenic allele.
+    # motivated by this case:
+    # REF   TTTCTCTCATT
+    # PATH  TTT----CATT
+    # READ      TTTCATT.....
+    # ALIGN  TT---TCATT --> interpreted incorrectly as an in-frame reversion, because deleting 3 bp with no
+    #                       additional gap is preferred to deleting 4 bp
+    # If the original read has a perfect match to the ref without the pathogenic deletion, use that and mark it no reversion.
+    # e.g. in the case above attempt a match of TTTCATT and TTTCATT
+    if( read$evidence == "reversion_read_does_not_include_pathogenic_variant" & pathogenic$mutation_class=="deletion" ){
+        # assess whether the read is compatible with a perfect match to the pathogenic alteration
+        if( realign_to_ref_with_pathogenic_deletion( read, pathogenic, gr_pathogenic, align_window ) ){
+            # there is a misalignment that can be corrected to show a perfect match to the reference
+            # when we include the pathogenic deletion
+            read$evidence = "read_harbors_pathogenic_variant_no_reversion"
+            read$del_lengths = width(gr_pathogenic)
+            read$total_frameshift = pathogenic$total_frameshift
+            # TODO: rewrite the cigar_ranges to be accurate in this read
+            #       I considered it reasonable to put this off because the read will be reported accurately
+            #       as a pathogenic allele with no reversion.
+        }
     }
 
     read
@@ -733,21 +843,28 @@ translate_cigar = function( transcript, read, pathogenic=NULL, min_nt_qual ){
 
     # translate exons
     # If indel(s) generated a predicted transcript that is out of frame, avoid "last base was ignored" warning
-    # by clipping off the last incomplete set of trailing nucleotides. This isn't strictly accurate since in principle
-    # translation could continue out of frame until it hits a stop codon, but in practice any realistic out of frame
-    # mutation is going to hit a stop codon far before the end of a transcript.
+    # by clipping off the last incomplete set of trailing nucleotides. For minus strand, these are
+    # actually the first incomplete set of leading nucleotides; found this as a bug.
+    # This isn't strictly accurate since in principle translation could continue out of frame until it
+    # hits a stop codon, but in practice any realistic out of frame mutation is going to hit a stop
+    # codon far before the end of a transcript.
     final_seq = ts$seq[ ts$keep & ts$exon_id != "" ]
-    if( length(final_seq) %% 3 != 0 ){
-        final_seq = final_seq[ 1 : ( length(final_seq) - length(final_seq) %% 3 ) ]
-    }
-    final_seq = DNAString( paste( final_seq, collapse="") )
+
     if( transcript$strand == "-"){
         # minus strand genes (e.g. BRCA1) are reported by ensembl on their native strand
         # we standardize nucleotides to positive strand in TranscriptData objects to match
         # the orientation of reads from alignment. If gene is negative strand,
         # reverse complement sequence back before translation
+        if( length(final_seq) %% 3 != 0 ){
+            final_seq = final_seq[ (1+ (length(final_seq) %% 3)) : length(final_seq) ]
+        }
+        final_seq = DNAString( paste( final_seq, collapse="") )
         Biostrings::translate( Biostrings::reverseComplement( final_seq ) )
     }else{
+        if( length(final_seq) %% 3 != 0 ){
+            final_seq = final_seq[ 1 : ( length(final_seq) - length(final_seq) %% 3 ) ]
+        }
+        final_seq = DNAString( paste( final_seq, collapse="") )
         Biostrings::translate( DNAString( paste( final_seq, collapse="") ) )
     }
 }
@@ -758,19 +875,17 @@ translate_cigar = function( transcript, read, pathogenic=NULL, min_nt_qual ){
 #' @return String representation of the cigar codes (not CIGAR formatted)
 encode_variants = function( rd ){
     code = ""
-    if( rd$has_del | rd$has_insertion | rd$has_realigned_softclipped ){
-        for(i in 1:dim( rd$cigar_ranges)[1] ){
-            cigar_code=rd$cigar_ranges$cigar_code[i]
-            if( cigar_code=="D" | cigar_code=="I" ){
-                cc=paste( cigar_code,
-                          rd$cigar_ranges$width[i],
-                          rd$cigar_ranges$ref_start[i],
-                          rd$cigar_ranges$ref_end[i], sep=":")
-                if( code == "" ){
-                    code=cc
-                }else{
-                    code = paste( code, cc, sep="_" )
-                }
+    for(i in 1:dim( rd$cigar_ranges)[1] ){
+        cigar_code=rd$cigar_ranges$cigar_code[i]
+        if( cigar_code=="D" | cigar_code=="I" ){
+            cc=paste( cigar_code,
+                      rd$cigar_ranges$width[i],
+                      rd$cigar_ranges$ref_start[i],
+                      rd$cigar_ranges$ref_end[i], sep=":")
+            if( code == "" ){
+                code=cc
+            }else{
+                code = paste( code, cc, sep="_" )
             }
         }
     }
@@ -806,6 +921,7 @@ summarize_candidates = function( reads, transcript ){
     encodings = c()
     n_unreverted = 0
     n_uninformative = 0
+    n_excluded = 0
     N = length(reads)
     for( ctr in 1:N ){
         rr = reads[[ ctr ]]
@@ -832,20 +948,93 @@ summarize_candidates = function( reads, transcript ){
                 n_obs = c(n_obs, 1 )
                 list_cigar_ranges = c( list_cigar_ranges, list( rr$cigar_ranges ) )
             }
-        }else if( rr$evidence=="read_harbors_pathogenic_variant_no_reversion" ){
+        }else if( rr$evidence=="read_harbors_pathogenic_variant_no_reversion" |
+                  rr$evidence=="read_harbors_splice_site_mutation_no_reversion" ){
             n_unreverted = n_unreverted+1
         }else if( rr$evidence == "read_not_informative" ){
             n_uninformative = n_uninformative + 1
+        }else if( rr$evidence == "read_harbors_variant_in_excluded_region" ){
+            n_excluded = n_excluded + 1
         }
     }
-    df_sum = data.frame( N=n_obs,
+    df_sum = data.frame( N = n_obs,
                          evidence,
                          pos = pos,
                          row.names = encodings,
                          stringsAsFactors = FALSE)
+    if( dim(df_sum)[1] == 0 ){
+        df_sum = data.frame(
+            sample=c(),
+            reversion=c(),
+            N=c(),
+            evidence=c(),
+            pos=c(),
+            read_qname=c()
+        )
+    }
     list( summary = df_sum,
           cigar_ranges = list_cigar_ranges,
           qnames = list_qnames,
           n_unreverted = n_unreverted,
-          n_uninformative = n_uninformative)
+          n_uninformative = n_uninformative,
+          n_excluded = n_excluded)
+}
+
+
+#' Write out a summary of all reads that support these results
+#'
+#' @param read_summary Read summary generated by aardvark
+#' @param pathogenic_mutation aardvark::Mutation object describing pathogenic mutation
+#' @param path_read_summary path to file to write
+#' @param sample_id Sample ID to write within summary file
+#' @param transcript_id Ensembl identifier of the gene transcript to which reads were compared
+#'
+#' @export
+write_read_summary = function( read_summary, pathogenic_mutation, path_read_summary, sample_id, transcript_id ){
+    rev_reads = data.frame()
+    if( dim(read_summary$summary)[1]>0 ){
+        for(i in 1:dim(read_summary$summary)[1] ){
+            for(r in 1:length( read_summary$qnames[[i]] ) ){
+                rev_reads = rbind( rev_reads,
+                                   cbind( sample_id,
+                                          dimnames(read_summary$summary[i,])[[1]],
+                                          read_summary$summary[i,],
+                                          read_summary$qnames[[i]][r] ) )
+            }
+        }
+        rev_reads = cbind( rev_reads, pathogenic_mutation=rep( encode_variants(pathogenic_mutation), dim(rev_reads)[1]) )
+        rev_reads = cbind( rev_reads, transcript_id=rep( transcript_id, dim(rev_reads)[1]) )
+        rev_reads = cbind( rev_reads, chrom=rep( pathogenic_mutation$chrom, dim(rev_reads)[1]) )
+        dimnames(rev_reads)[[1]] = paste0( "read_", 1:dim( rev_reads )[1])
+        dimnames( rev_reads )[[2]] = c("sample","reversion", "N","evidence","pos","read_qname", "pathogenic_mutation", "transcript_id", "chrom")
+        rev_reads = rev_reads[,c(1,9,8,7,2,3,4,5,6)]
+        write.table( rev_reads, file = path_read_summary, sep='\t', row.names = FALSE, quote=FALSE)
+    }else{
+        cat( "sample\tchrom\ttranscript_id\tpathogenic_mutation\treversion\tN\tevidence\tpos\tread_qname\n", file = path_read_summary)
+    }
+
+}
+
+#' Write out a summary of all reversions identified
+#'
+#' @param read_summary Read summary generated by aardvark
+#' @param pathogenic_mutation aardvark::Mutation object describing pathogenic mutation
+#' @param path_reversion_summary path to file to write
+#' @param sample_id Sample ID to write within summary file
+#' @param transcript_id Ensembl identifier of the gene transcript to which reads were compared
+#'
+#' @export
+write_reversion_summary = function( read_summary, pathogenic_mutation, path_reversion_summary, sample_id, transcript_id ){
+    rs = read_summary$summary
+    if( dim( rs )[1] == 0 ){
+        cat( "sample\tchrom\ttranscript_id\tpathogenic_mutation\treversion\tN\tevidence\tpos\n", file = path_reversion_summary)
+    }else{
+        rs$reversion = dimnames(rs)[[ 1 ]]
+        rs = cbind( rs, pathogenic_mutation=rep( encode_variants(pathogenic_mutation), dim(rs)[1]) )
+        rs = cbind( rs, transcript_id=rep( transcript_id, dim(rs)[1]) )
+        rs = cbind( rs, chrom=rep( pathogenic_mutation$chrom, dim(rs)[1]) )
+        rs = rs[,c(7,6,5,4,1,2,3) ]
+        rs = cbind( sample=rep( sample_id, dim(rs)[1] ), rs)
+        write.table( rs, file = path_reversion_summary, sep='\t', row.names = FALSE, quote=FALSE)
+    }
 }

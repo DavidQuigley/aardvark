@@ -16,7 +16,7 @@ BamData(fn_bam, chrom, start, end)
 \item{end}{read end position}
 }
 \value{
-list of reads (data frame) and qualities (matrix)
+list of reads (data frame) and qualities (list)
 }
 \description{
 This function is a thin wrapper around Rsamtools::scanBam to return reads in a bam file.

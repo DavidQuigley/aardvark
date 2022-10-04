@@ -4,7 +4,7 @@
 \alias{Mutation}
 \title{Generate an object that holds information about a mutation.}
 \usage{
-Mutation(chrom, pos, seq_ref, seq_alt)
+Mutation(chrom, pos, seq_ref, seq_alt, transcript)
 }
 \arguments{
 \item{chrom}{chromosome}
@@ -14,6 +14,8 @@ Mutation(chrom, pos, seq_ref, seq_alt)
 \item{seq_ref}{character string indicating the reference sequence}
 
 \item{seq_alt}{character string indicating the mutation sequence}
+
+\item{transcript}{an aardvark::TranscriptData object used to assess the impact of the mutation}
 }
 \value{
 a list with elements that describe the consequences of the mutation

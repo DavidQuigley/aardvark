@@ -5,7 +5,8 @@ test_that("translation works", {
     min_nt_qual = 20
     pathogenic = aardvark::Mutation(chrom="chr13", pos = 32339657,
                                   seq_ref = "CTT",
-                                  seq_alt = "C")
+                                  seq_alt = "C",
+                                  transcript=transcript_BRCA2)
 
     # read overlaps mutation and reports no mutation, so should be eliminated
     pos=32339628
@@ -146,7 +147,8 @@ test_that("translation works", {
     pathogenic = aardvark::Mutation(chrom="chr17",
                                   pos = 43093367,
                                   seq_ref = "CAA",
-                                  seq_alt="C")
+                                  seq_alt="C",
+                                  transcript=transcript_BRCA1)
 
     # remove deletion, should produce original amino acid sequence
     qname="test"
@@ -167,7 +169,8 @@ test_that("translation works", {
     pathogenic = aardvark::Mutation(chrom="chr13",
                                     pos = 32339654,
                                     seq_ref = "A",
-                                    seq_alt="T")
+                                    seq_alt="T",
+                                    transcript=transcript_BRCA2)
     # read overlaps mutation and reports no mutation, we have changed the pathogenic mutation
     seq=DNAString("AAAAAAACACTAGTTTTTCCAAAGTAATATCCAATGTAAAAGATGCAAATGCATACCCAC")
     qual=rep(37, length(seq) )
