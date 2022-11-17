@@ -121,6 +121,9 @@ for(i in 1:dim(variants)[1]){
     if( opt$genome_draft == 38 & opt$transcript_id %in% names( transcript_cache_hg38 ) ){
         transcript = transcript_cache_hg38[[ opt$transcript_id ]]
     }else{
+        if( ! exists("ensembl") ){
+            ensembl = biomaRt::useDataset("hsapiens_gene_ensembl", mart = biomaRt::useMart("ensembl") )
+        }
         transcript = aardvark::TranscriptData( ensembl, EnsDb.Hsapiens.v86, opt$transcript_id )
     }
 
