@@ -3,14 +3,14 @@
 \docType{data}
 \name{sequence_cache_hg38}
 \alias{sequence_cache_hg38}
-\title{List of cached transcript data objects}
+\title{List of cached sequence data objects}
 \format{
 a list of sequence objects
 }
 \usage{
-data(ensembl_cache)
+data(sequence_cache_hg38)
 }
 \description{
-List of cached transcript data objects
+List of cached sequence data objects
 }
 \keyword{ensembl}

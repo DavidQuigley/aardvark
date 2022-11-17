@@ -5,10 +5,10 @@
 \alias{transcript_cache_hg38}
 \title{List of cached transcript data objects}
 \format{
-a list of aardvark::TranscriptData objects
+a list of transcript objects
 }
 \usage{
-data(ensembl_cache)
+data(transcript_cache_hg38)
 }
 \description{
 List of cached transcript data objects

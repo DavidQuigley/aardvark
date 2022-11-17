@@ -1,12 +1,3 @@
-# TODO: Investigate /data1/projects/human_UCSF500/aardvark/CGP-16090_chr17_43093628_AARDVARK_reversion_summary.txt
-# as it appears to be giving false reversions.
-
-# /data1/projects/human_UCSF500/aardvark/CGP-20875_chr11_108331884_AARDVARK_reversion_summary.txt
-# this is calling the pathogenic mutation (really just a 9 base in-frame deletion) as a reversion
-# same problem:
-# /data1/projects/human_UCSF500/aardvark/CGP-22571_chr11_108288975_AARDVARK_reversion_summary.txt
-# CGP-19346 is a real hit
-
 suppressPackageStartupMessages( require( optparse, quietly=TRUE, warn.conflicts=FALSE ) )
 
 option_list <- list(
@@ -30,15 +21,6 @@ option_list <- list(
     make_option(c("-v", "--verbose"), type = "logical", action="store_true", help = "Write progress to stdout, default TRUE", default=TRUE))
 
 opt = parse_args( OptionParser(option_list=option_list, usage = "usage: Rscript %prog [options]") )
-
- opt = data.frame( sample_id="CGP-14337",
-                   fn_bam = "~/mnt/data1/datasets_1/human_UCSF500/processed/CGP-14337/CGP-14337_dedup.bam",
-                   window_size=1000,
-                   dir_out="~/mnt/data1/projects/human_UCSF500/aardvark",
-                   fn_vcf="~/mnt/data1/datasets_1/human_UCSF500/processed/CGP-14337/CGP-14337_mutect2_candidates.vcf",
-                   genome_draft=38, near_bound=6, allow_insertions_in_realign=TRUE,
-                   min_nt_for_distant_realign=15, min_percent_realigned=0.9, min_nt_qual=20,
-                   write_rdata=FALSE, verbose=TRUE)
 
 if( sum( names(opt)=="fn_bam")==0 ){
     stop( "invalid parameter(s) for input. Input BAM file required in parameter fn_bam")
@@ -94,7 +76,9 @@ if( dim(variants)[1]==0 ){
 
 if( opt$verbose ){  cat( paste0( "MESSAGE: Loading Ensembl data\n") ) }
 
-data( ensembl_cache )
+data( exon_cache_hg38 )
+data( sequence_cache_hg38 )
+data( transcript_cache_hg38 )
 if( opt$genome_draft == 38 ){
     Hsapiens_version = BSgenome.Hsapiens.UCSC.hg38
     data( hg38_ensembl_coding_transcripts )

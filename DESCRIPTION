@@ -1,7 +1,7 @@
 Package: aardvark
 Type: Package
 Title: An Automated Reversion Detector for Variants Affecting Resistance Kinetics
-Version: 0.2.0
+Version: 0.2.1
 Author: David Quigley
 Maintainer: David Quigley <david.quigley@ucsf.edu>
 Description: Realigns BAM files containing reversions to count and analyze them.

@@ -3,14 +3,14 @@
 \docType{data}
 \name{exon_cache_hg38}
 \alias{exon_cache_hg38}
-\title{List of cached transcript data objects}
+\title{List of cached exon data objects}
 \format{
-a list of exon struture objects
+a list of ensembl exon objects
 }
 \usage{
-data(ensembl_cache)
+data(exon_cache_hg38)
 }
 \description{
-List of cached transcript data objects
+List of cached exon data objects
 }
 \keyword{ensembl}
