@@ -17,7 +17,9 @@ AARDVARK was developed in the [Quigley lab](https://quigleylab.ucsf.edu) at UCSF
 3) Define a read object to realign in that region
 4) Realign the read and assess whether it creates a reversion
 
-In real use cases, all of the reads in a region are automatically read from a BAM file and the pathogenic mutation can be read from a VCF file of candidate locations. In this use case, most of the reads will not harbor a reversion. AARDVARK ships with wrappers that allow users to perform searches from the command line without writing any R code.
+In real use cases, all of the reads in a region are automatically read from a BAM file 
+and the pathogenic mutation can be read from a VCF file of candidate locations (see below). 
+AARDVARK ships with command-line scripts that allow users to use AARDVARK without writing any R code.
 
 **Example**
 
