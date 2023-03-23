@@ -5,7 +5,7 @@
 <img src="https://quigleylab.ucsf.edu/sites/g/files/tkssra5646/f/wysiwyg/AARDVARK.jpg" style="height: 169px; width:362px;"><br />
 
 AARDVARK is an R package that identifies reversion mutations in DNA sequence data. For 
-motivation, you could read 2017 paper [Quigley et al. Cancer Discovery 2017](https://pubmed.ncbi.nlm.nih.gov/28450426/) where we demonstrated that a common form of PARP inhibitor resistance, called reversion mutations, can be detected in advanced prostate cancer by liquid biopsy.
+motivation, you could read our 2017 paper [Quigley et al. Cancer Discovery 2017](https://pubmed.ncbi.nlm.nih.gov/28450426/) where we demonstrated that a common form of PARP inhibitor resistance, called reversion mutations, can be detected in advanced prostate cancer by liquid biopsy.
 
 AARDVARK was developed in the [Quigley lab](https://quigleylab.ucsf.edu) at UCSF.
 
@@ -113,9 +113,9 @@ D:1137:32339427:32340563|1|reversion_read_deletion_spans_pathogenic_variant|3233
 
 ## Quick Start: command line
 
-This script reads in the reads from an aligned and indexed bam file bam_input.bam and realign any reads that fall within a 3000 base window centered around any variant described in the VCF file. The BAM must be aligned and indexed, and the reference must match the genome draft you specify. Using this approach, any number of alleles could be tested.
+This script loads in the reads from an aligned and indexed bam file bam_input.bam and realigns any reads that fall within a 3000 base window centered around any variant described in the VCF file. The BAM must be aligned and indexed, and the reference must match the genome draft you specify. Using this approach, any number of alleles could be tested.
 
-**IMPORTANT**: This does *not* create a new BAM file or in any way modify the BAM you are using; the realigned reads are used to generate a report that will be written to the output folder.
+**IMPORTANT**: Running this program does *not* create a new BAM file or in any way modify the BAM you are using; the realigned reads are used to generate a report that will be written to the output folder.
 
 ```
 Rscript realign_BAM_region_from_VCF.R \
