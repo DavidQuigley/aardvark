@@ -115,4 +115,29 @@ test_that("alignment works", {
     expect_equal( RA$REF, "ACT" )
     expect_equal( RA$ALT, "GAG" )
 
+    # test that read_to_genome_sequence generates string representations
+    # this is a classic reversion allele with two deletions
+    rd_test = Read( qname="A00887:299:HWFYGDSXY:2:2235:15501:11929",
+               cigar="21M7D21M2D109M",
+               chrom="chr13",
+               pos=32339609,
+               seq=DNAString("CATTCTGATGAGGTATATAATGATATCTCTCAAAAAATAAACGATTCTGGTATTGAGCCAGTATTGAAGAATGTTGAAGATCAAAAAAACACTAGTTTTTCCAAAGTAATATCCAATGTAAAAGATGCAAATGCATACCCACAAACTGTAA"),
+               qual=rep(37, 151) )
+    AW_test = aardvark::AlignmentWindow( BSgenome.Hsapiens.UCSC.hg38, chrom="chr13",
+                                    32339609 - 300, 32339609 + 300,
+                                    min_length_for_homopolymer = 5   )
+
+    nt = read_to_genome_sequence( rd_test, AW_test )
+    expect_equal( dim(nt)[1], 160 )
+    expect_equal( nt$nt[21], "T" )
+    expect_equal( nt$nt[22], "-" )
+    expect_equal( nt$nt[28], "-" )
+    expect_equal( nt$nt[29], "G" )
+    expect_equal( nt$nt[48], "A" )
+    expect_equal( nt$nt[49], "C" )
+    expect_equal( nt$nt[50], "-" )
+    expect_equal( nt$nt[51], "-" )
+    expect_equal( nt$nt[ nt$pos==32339658],  "-" )
+    expect_equal( nt$nt[ nt$pos==32339659],  "-" )
+
 } )

@@ -1,7 +1,5 @@
 # AARDVARK
 # An Automated Reversion Detector for Variants Affecting Resistance Kinetics
-# Install from source:
-# install.packages("/data1/opt/software/aardvark_0.2.0.tar.gz", repos=NULL, type="source")
 
 #' Align a nucleotide sequence in a region of the reference
 #'
@@ -162,12 +160,104 @@ merge_softclipped_into_read = function( read, idx_from, idx_into ){
     read
 }
 
+#' If a pathogenic mutation is a deletion located adjacent to a DNA sequence
+#' that repeats the deleted nucleotides, there will likely be alignments
+#' that put the deletion on the non-germline deleted repeat segment intead of
+#' the germline deletion. This looks reasonable to the aligner and can frequently
+#' result in a higher alignment (e.g. because it makes a contiguous deletion)
+#' but we know this is extremely implausible due to the position of the germline
+#' deletion. This function looks for exactly that situation and remedies it.
+#'
+#' @param read aardvark::Read object under consideration
+#' @param gr_pathogenic GenomicRanges spanning the pathogenic mutation
+#' @param pathogenic_mutation the pathogenic mutation
+#' @param align_window aardvark::AlignmentWindow object that holds reference sequence search space for realignment
+realign_repeat_pathogenic_deletions = function( read,
+                                                gr_pathogenic,
+                                                pathogenic_mutation,
+                                                align_window){
+    if( pathogenic_mutation$mutation_class == "deletion" ){
+        mut_ref_vals = pathogenic_mutation$location$ref
+        mut_len = length( mut_ref_vals )
+        ss = read_to_genome_sequence( read, align_window )
+        # this analysis only makes sense if the read overlaps the pathogenic
+        # and there is at least one deletion in the alignment
+        if( sum( ss$pos == pathogenic_mutation$pos) == 1 &
+            sum( read$cigar_ranges$cigar_code == "D") > 0 ){
+            # walk through pathogenic: if for all pathogenic loci
+            #   present in ss at pathogenic and absent at 3p adjacent and values are repeated
+            #     -> rewrite 3p
+            pos = pathogenic_mutation$pos
+            move_adjacent_on_3p = TRUE
+            adjacent_3p = AW_seq( align_window, pathogenic_mutation$pos + mut_len, pathogenic_mutation$pos + mut_len + mut_len - 1 )
+            for( i in 1:mut_len ){
+                germline_marked_not_deleted = ss$nt[ ss$pos == pos ] != "-"
+                adjacent_marked_deleted =     ss$nt[ ss$pos == (pos + mut_len) ] == "-"
+                germline_is_repeat = as.character( adjacent_3p[i] ) == mut_ref_vals[i]
+                if( !( germline_marked_not_deleted & adjacent_marked_deleted & germline_is_repeat ) ){
+                    move_adjacent_on_3p = FALSE
+                }
+                pos = pos+1
+            }
+
+            if( move_adjacent_on_3p ){
+                rr_realign = data.frame(
+                    pos = ss$pos,
+                    read = ss$nt,
+                    ref = strsplit( as.character(AW_seq(align_window, ss$pos[1], ss$pos[ dim(ss)[1] ] )), "")[[1]],
+                    qual = rep(30, dim(ss)[1]))
+                idx = which( rr_realign$pos == pathogenic_mutation$pos )
+                for( i in 1 : mut_len ){
+                    rr_realign$read[ idx ] = "-"
+                    rr_realign$read[ idx + mut_len ] = rr_realign$ref[idx + mut_len]
+                    idx=idx+1
+                }
+
+                read = rebuild_read_from_realignment( read, rr_realign )
+            }else{
+                pos = pathogenic_mutation$pos
+                move_adjacent_on_5p = TRUE
+                adjacent_5p = AW_seq( align_window, pathogenic_mutation$pos - mut_len, pathogenic_mutation$pos -1 )
+
+                for( i in 1:mut_len ){
+                    germline_marked_not_deleted = ss$nt[ ss$pos == pos ] != "-"
+                    adjacent_marked_deleted =     ss$nt[ ss$pos == (pos - mut_len) ] == "-"
+                    germline_is_repeat = as.character( adjacent_5p[i] ) == mut_ref_vals[i]
+                    if( !( germline_marked_not_deleted & adjacent_marked_deleted & germline_is_repeat ) ){
+                        move_adjacent_on_5p = FALSE
+                    }
+                    pos = pos+1
+                }
+
+                if( move_adjacent_on_5p ){
+                    rr_realign = data.frame(
+                        pos = ss$pos,
+                        read = ss$nt,
+                        ref = strsplit( as.character(AW_seq(align_window, ss$pos[1], ss$pos[ dim(ss)[1] ] )), "")[[1]],
+                        qual = rep(30, dim(ss)[1]))
+                    idx = which( rr_realign$pos == pathogenic_mutation$pos )
+                    for( i in 1 : mut_len ){
+                        rr_realign$read[ idx ] = "-"
+                        rr_realign$read[ idx - mut_len ] = rr_realign$ref[idx - mut_len]
+                        idx=idx+1
+                    }
+                    read = rebuild_read_from_realignment( read, rr_realign )
+                }
+            }
+        }
+        read
+    }
+}
 
 #' attempt to improve the alignment of a read through local realignment
+#'
+#' Pass both gr_pathogenic and pathogenic_mutation because making a GenomicRanges
+#' is expensive if you're doing it thousands of times.
 #'
 #' @param read aardvark::Read object under consideration
 #' @param align_window aardvark::AlignmentWindow object that holds reference sequence search space for realignment
 #' @param gr_pathogenic GenomicRanges spanning the pathogenic mutation
+#' @param pathogenic_mutation the pathogenic mutation
 #' @param allow_insertions_in_realign whether to allow insertions in the realignment
 #' @param min_nt_for_distant_realign minimum size for a local realignment that moves a soft-clipped segment to a distant locus
 #' @param min_percent_realigned minimum percentage of the total length of a soft-clipped segment that must be aligned perfectly
@@ -177,13 +267,20 @@ merge_softclipped_into_read = function( read, idx_from, idx_into ){
 #' @export
 realign_read = function( read,
                          align_window,
-                         gr_pathogenic,
+                         pathogenic_mutation,
+                         gr_pathogenic = NULL,
                          allow_insertions_in_realign = TRUE,
                          min_nt_for_distant_realign = 15,
                          min_percent_realigned = 0.9,
                          near_bound = 6,
                          min_nt_qual = 20){
 
+    if( is.null( gr_pathogenic ) ){
+        gr_pathogenic_mut = aardvark::genomicRangesFromMutation(pathogenic_mut)
+    }
+    if( read$pos < align_window$start | read$pos > align_window$end ){
+        stop( paste( "read position", read$pos, "out of bounds for alignment window ranging", align_window$start,"to",align_window$end ) )
+    }
     clipped_width = 0
     clipped_left = read$cigar_ranges$cigar_code[1] == "S"
     clipped_right = read$cigar_ranges$cigar_code[ dim( read$cigar_ranges)[1] ] == "S"
@@ -236,6 +333,16 @@ realign_read = function( read,
     if( length(idx_d) > 0 ){
         read$del_lengths = read$cigar_ranges$width[ idx_d ]
     }
+
+    # Best local alignment may not reflect genetic reality if a pathogenic
+    # deletion is a repeat sequence that is deleted
+    # e.g.:
+    # REF  AAGAGAAGCTGCAT
+    # PATH A--AGAAGCTGCAT
+    # READ AAG---------AT # total frameshift: 9, no apparent reversion
+    # should be
+    #      A--AG-------AT # total frameshift: 9, reversion is present
+    read = realign_repeat_pathogenic_deletions( read, gr_pathogenic, pathogenic_mutation, align_window)
 
     # rewrite positions to reflect any changes made during realignment
     for(i in 1:dim(read$cigar_ranges)[1] ){

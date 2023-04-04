@@ -8,6 +8,7 @@ realign_read(
   read,
   align_window,
   gr_pathogenic,
+  pathogenic_mutation,
   allow_insertions_in_realign = TRUE,
   min_nt_for_distant_realign = 15,
   min_percent_realigned = 0.9,
@@ -21,6 +22,8 @@ realign_read(
 \item{align_window}{aardvark::AlignmentWindow object that holds reference sequence search space for realignment}
 
 \item{gr_pathogenic}{GenomicRanges spanning the pathogenic mutation}
+
+\item{pathogenic_mutation}{the pathogenic mutation}
 
 \item{allow_insertions_in_realign}{whether to allow insertions in the realignment}
 
@@ -36,5 +39,6 @@ realign_read(
 Returns the updated read object
 }
 \description{
-attempt to improve the alignment of a read through local realignment
+Pass both gr_pathogenic and pathogenic_mutation because making a GenomicRanges
+is expensive if you're doing it thousands of times.
 }

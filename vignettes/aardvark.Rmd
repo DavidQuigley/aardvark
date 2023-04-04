@@ -1,0 +1,118 @@
+---
+title: "An Automated Reversion Detector for Variants Affecting Resistance Kinetics"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{An Automated Reversion Detector for Variants Affecting Resistance Kinetics}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup, echo=FALSE}
+library(aardvark)
+library(knitr)
+suppressPackageStartupMessages( require( BSgenome.Hsapiens.UCSC.hg38, quietly=TRUE, warn.conflicts=FALSE ) )
+```
+
+# AARDVARK
+
+**An Automated Reversion Detector for Variants Affecting Resistance Kinetics**
+
+David Quigley, PhD  
+UCSF Department of Urology
+
+## Introduction 
+
+AARDVARK is an R package that identifies reversion mutations in DNA sequence data. 
+
+Genetic variations that inactivate genes essential for homologous recombination repair of double strand breaks, most frequently *BRCA1* and *BRCA2*, drive susceptibility to several types of cancer. Cells with these variants are sensitized to platinum therapies such as cisplatin and PARP inhibitor therapies such as olaparib. Unfortunately, "reversion" mutations that re-activate these genes produce therapy resistance. Reversion mutations were first described in 2008 (Edwards Nature 2008 and Sakai Nature 2008). In a 2017 paper, [Quigley et al. Cancer Discovery 2017](https://pubmed.ncbi.nlm.nih.gov/28450426/), we demonstrated that reversion mutations can be detected in advanced prostate cancer by liquid biopsy.
+
+Detecting reversion mutations by hand is tedious and requires expert curation by a bioinformatician who knows genetics. We wrote AARDARK to allow for automated detection of reversion mutations in aligned genome sequence data.
+
+## A workflow for calling reversion mutations
+
+1) align and index raw sequence data 
+2) define one or more pathogenic variants that inactivate a gene of interest
+3) Run AARDVARK to realign all of the reads within a window around the variant and interpret whether they produce a reversion
+ 
+While in principle you can run AARDVARK by manually defining DNA reads, in practice one specifies a window in which to test all of the reads in an aligned DNA sequence file. Command line scripts are provided to produce reports without writing any code. Pathogenic variants to interrogate can be read from a standard VCF file.
+
+## Example: manually define a read and pathogenic variant
+
+In this first example we'll create a read manually. 
+
+First, we'll **define a pathogenic mutation** in the *BRCA2* gene. The *seq_ref* and *seq_alt* parameters are written as they would be in a VCF file. In this case a two nucleotide deletion of *TT* at chromosome 13 positions 32339658 and 32339659 is represented as a variant starting at position 32339657 changing from *CTT* to *C*.
+
+The *transcript* parameter defines the transcript affected by that mutation. AARDVARK ships with a set of ensembl transcripts, and you can define your own.
+
+```{r}
+pathogenic_mut = aardvark::Mutation( chrom="chr13", 
+                         pos=32339657, 
+                         seq_ref = "CTT", 
+                         seq_alt = "C", 
+                         transcript=aardvark::transcript_BRCA2)
+```
+
+Next, we'll **define an alignment window** for the analysis. The window can be of any size.
+
+```{r}
+window_start = pathogenic_mut$pos - 3000
+window_end =   pathogenic_mut$pos + 3000
+AW = aardvark::AlignmentWindow( Hsapiens_version = BSgenome.Hsapiens.UCSC.hg38, 
+                                chrom="chr13",
+                                window_start = window_start,
+                                window_end = window_end)
+```
+
+Now we'll **create a read object**. This example read was aligned by *bwa* to start with a 72 nucleotide soft clip, followed by a 79 nucleotide perfect match. This information is encoded in a CIGAR string.
+
+```{r}
+read_nt = "CAGCCTTAGCTTTTTACACAAGTTGTAGTAGAAAAACTTCTGTGAGTCAGACTTCATTACTTGAAGCAAAAAAAAGTTCCTTACACAAAGTTAAGGGAGTGTTAGAGGAATTTGATTTAATCAGAACTGAGCATAGTCTTCACTATTCACC"
+read_original = aardvark::Read( qname="A00887:299:HWFYGDSXY:2:2674:25211:28682",
+                     cigar = "72S79M",
+                     chrom = "chr13",
+                     pos = 32340564,
+                     seq = DNAString( read_nt ),
+                     qual = rep(37, 151) )
+```
+
+We can inspect the cigar ranges of the original read:
+
+```{r}
+kable( read_original$cigar_ranges )
+```
+
+We'll now **realign the read**. 
+
+```{r}
+read_realigned = aardvark::realign_read( read = read_original, 
+                                         align_window = AW, 
+                                         pathogenic_mut)
+```
+
+The corrected alignment has a large deletion flanked by two perfect matches. 
+```{r}
+kable( read_realigned$cigar_ranges )
+```
+
+Finally, we can assess whether this read is predicted to produce a reversion:
+
+```{r}
+read_realigned = aardvark::assess_reversion(read = read_realigned,
+                                            transcript = aardvark::transcript_BRCA2,
+                                            pathogenic = pathogenic_mut,
+                                            align_window = AW)
+
+read_summary = aardvark::summarize_candidates( list( read_realigned ), 
+                                               transcript=aardvark::transcript_BRCA2 )
+
+kable( read_summary$summary )
+```
+
+The read is predicted to produce a reversion.

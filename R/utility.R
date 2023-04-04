@@ -155,3 +155,29 @@ convert.VCF.REFALT.to.dash.format = function( s_ref, s_alt ){
     }
     list( REF = paste( v_ref_final, collapse=""), ALT = paste(v_alt_final, collapse="") )
 }
+
+#' Given a read, return a simple data frame that write the reference sequence
+#' where there is a perfect match and D or I for deletion/insertion.
+#' @param read aardvark::Read object under consideration
+#' @param alignment_window aardvark::AlignmentWindow object that holds reference sequence search space for realignment
+read_to_genome_sequence = function( read, alignment_window ){
+
+    nt_width = read$cigar_ranges$ref_end[ dim(read$cigar_ranges)[1] ] - read$cigar_ranges$ref_start[ 1 ]
+
+    nt = rep(".", nt_width )
+    pos = rep(0, nt_width )
+    for( i in 1:dim(read$cigar_ranges)[1]){
+        idx = (1 + read$cigar_ranges$ref_start[i] - read$pos) : (1 + read$cigar_ranges$ref_end[i] - read$pos )
+        pos[ idx ] = read$cigar_ranges$ref_start[i] : read$cigar_ranges$ref_end[i]
+        if( read$cigar_ranges$cigar_code[i]=="M" ){
+            nts = strsplit( as.character( AW_seq(alignment_window, read$cigar_ranges$ref_start[i], read$cigar_ranges$ref_end[i] ) ), "")[[1]]
+            nt[ idx ] = nts
+        }else if( read$cigar_ranges$cigar_code[i]=="D" ){
+            nt[ idx ] = "-"
+        }else if( read$cigar_ranges$cigar_code[i]=="I" ){
+            nt[ idx ] = "I"
+        }
+    }
+    data.frame( pos, nt )
+}
+
