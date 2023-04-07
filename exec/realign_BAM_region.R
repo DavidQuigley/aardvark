@@ -112,7 +112,8 @@ for( ctr in 1:bb$N ){
     read = aardvark::read_from_BamData( bb, ctr )
     read = aardvark::realign_read( read,
                                    alignment_helper,
-                                   gr_pathogenic,
+                                   pathogenic_mutation = pathogenic_mutation,
+                                   gr_pathogenic = gr_pathogenic,
                                    allow_insertions_in_realign = opt$allow_insertions_in_realign,
                                    min_nt_for_distant_realign = opt$min_nt_for_distant_realign,
                                    min_percent_realigned = opt$min_percent_realigned,

@@ -182,54 +182,28 @@ realign_repeat_pathogenic_deletions = function( read,
         ss = read_to_genome_sequence( read, align_window )
         # this analysis only makes sense if the read overlaps the pathogenic
         # and there is at least one deletion in the alignment
-        if( sum( ss$pos == pathogenic_mutation$pos) == 1 &
-            sum( read$cigar_ranges$cigar_code == "D") > 0 ){
-            # walk through pathogenic: if for all pathogenic loci
-            #   present in ss at pathogenic and absent at 3p adjacent and values are repeated
-            #     -> rewrite 3p
-            pos = pathogenic_mutation$pos
-            move_adjacent_on_3p = TRUE
-            adjacent_3p = AW_seq( align_window, pathogenic_mutation$pos + mut_len, pathogenic_mutation$pos + mut_len + mut_len - 1 )
-            for( i in 1:mut_len ){
-                germline_marked_not_deleted = ss$nt[ ss$pos == pos ] != "-"
-                adjacent_marked_deleted =     ss$nt[ ss$pos == (pos + mut_len) ] == "-"
-                germline_is_repeat = as.character( adjacent_3p[i] ) == mut_ref_vals[i]
-                if( !( germline_marked_not_deleted & adjacent_marked_deleted & germline_is_repeat ) ){
-                    move_adjacent_on_3p = FALSE
-                }
-                pos = pos+1
-            }
 
-            if( move_adjacent_on_3p ){
-                rr_realign = data.frame(
-                    pos = ss$pos,
-                    read = ss$nt,
-                    ref = strsplit( as.character(AW_seq(align_window, ss$pos[1], ss$pos[ dim(ss)[1] ] )), "")[[1]],
-                    qual = rep(30, dim(ss)[1]))
-                idx = which( rr_realign$pos == pathogenic_mutation$pos )
-                for( i in 1 : mut_len ){
-                    rr_realign$read[ idx ] = "-"
-                    rr_realign$read[ idx + mut_len ] = rr_realign$ref[idx + mut_len]
-                    idx=idx+1
-                }
-
-                read = rebuild_read_from_realignment( read, rr_realign )
-            }else{
+        # test if pathogenic is in read from start and end and is a deletion
+        idx_mut = which( ss$pos == pathogenic_mutation$pos )
+        if( length(idx_mut) == 1 ){
+            if( (idx_mut + mut_len - 1 <= dim(ss)[1] ) &
+                sum( read$cigar_ranges$cigar_code == "D") > 0 ){
+                # walk through pathogenic: if for all pathogenic loci
+                #   present in ss at pathogenic and absent at 3p adjacent and values are repeated
+                #     -> rewrite 3p
                 pos = pathogenic_mutation$pos
-                move_adjacent_on_5p = TRUE
-                adjacent_5p = AW_seq( align_window, pathogenic_mutation$pos - mut_len, pathogenic_mutation$pos -1 )
-
+                move_adjacent_on_3p = TRUE
+                adjacent_3p = AW_seq( align_window, pathogenic_mutation$pos + mut_len, pathogenic_mutation$pos + mut_len + mut_len - 1 )
                 for( i in 1:mut_len ){
                     germline_marked_not_deleted = ss$nt[ ss$pos == pos ] != "-"
-                    adjacent_marked_deleted =     ss$nt[ ss$pos == (pos - mut_len) ] == "-"
-                    germline_is_repeat = as.character( adjacent_5p[i] ) == mut_ref_vals[i]
+                    adjacent_marked_deleted =     ss$nt[ ss$pos == (pos + mut_len) ] == "-"
+                    germline_is_repeat = as.character( adjacent_3p[i] ) == mut_ref_vals[i]
                     if( !( germline_marked_not_deleted & adjacent_marked_deleted & germline_is_repeat ) ){
-                        move_adjacent_on_5p = FALSE
+                        move_adjacent_on_3p = FALSE
                     }
                     pos = pos+1
                 }
-
-                if( move_adjacent_on_5p ){
+                if( move_adjacent_on_3p ){
                     rr_realign = data.frame(
                         pos = ss$pos,
                         read = ss$nt,
@@ -238,15 +212,45 @@ realign_repeat_pathogenic_deletions = function( read,
                     idx = which( rr_realign$pos == pathogenic_mutation$pos )
                     for( i in 1 : mut_len ){
                         rr_realign$read[ idx ] = "-"
-                        rr_realign$read[ idx - mut_len ] = rr_realign$ref[idx - mut_len]
+                        rr_realign$read[ idx + mut_len ] = rr_realign$ref[idx + mut_len]
                         idx=idx+1
                     }
+
                     read = rebuild_read_from_realignment( read, rr_realign )
+                }else{
+                    pos = pathogenic_mutation$pos
+                    move_adjacent_on_5p = TRUE
+                    adjacent_5p = AW_seq( align_window, pathogenic_mutation$pos - mut_len, pathogenic_mutation$pos -1 )
+
+                    for( i in 1:mut_len ){
+                        germline_marked_not_deleted = ss$nt[ ss$pos == pos ] != "-"
+                        adjacent_marked_deleted =     ss$nt[ ss$pos == (pos - mut_len) ] == "-"
+                        germline_is_repeat = as.character( adjacent_5p[i] ) == mut_ref_vals[i]
+                        if( !( germline_marked_not_deleted & adjacent_marked_deleted & germline_is_repeat ) ){
+                            move_adjacent_on_5p = FALSE
+                        }
+                        pos = pos+1
+                    }
+
+                    if( move_adjacent_on_5p ){
+                        rr_realign = data.frame(
+                            pos = ss$pos,
+                            read = ss$nt,
+                            ref = strsplit( as.character(AW_seq(align_window, ss$pos[1], ss$pos[ dim(ss)[1] ] )), "")[[1]],
+                            qual = rep(30, dim(ss)[1]))
+                        idx = which( rr_realign$pos == pathogenic_mutation$pos )
+                        for( i in 1 : mut_len ){
+                            rr_realign$read[ idx ] = "-"
+                            rr_realign$read[ idx - mut_len ] = rr_realign$ref[idx - mut_len]
+                            idx=idx+1
+                        }
+                        read = rebuild_read_from_realignment( read, rr_realign )
+                    }
                 }
             }
         }
-        read
     }
+    read
 }
 
 #' attempt to improve the alignment of a read through local realignment
@@ -256,8 +260,8 @@ realign_repeat_pathogenic_deletions = function( read,
 #'
 #' @param read aardvark::Read object under consideration
 #' @param align_window aardvark::AlignmentWindow object that holds reference sequence search space for realignment
-#' @param gr_pathogenic GenomicRanges spanning the pathogenic mutation
 #' @param pathogenic_mutation the pathogenic mutation
+#' @param gr_pathogenic GenomicRanges spanning the pathogenic mutation
 #' @param allow_insertions_in_realign whether to allow insertions in the realignment
 #' @param min_nt_for_distant_realign minimum size for a local realignment that moves a soft-clipped segment to a distant locus
 #' @param min_percent_realigned minimum percentage of the total length of a soft-clipped segment that must be aligned perfectly
@@ -276,7 +280,7 @@ realign_read = function( read,
                          min_nt_qual = 20){
 
     if( is.null( gr_pathogenic ) ){
-        gr_pathogenic_mut = aardvark::genomicRangesFromMutation(pathogenic_mut)
+        gr_pathogenic_mut = aardvark::genomicRangesFromMutation(pathogenic_mutation)
     }
     if( read$pos < align_window$start | read$pos > align_window$end ){
         stop( paste( "read position", read$pos, "out of bounds for alignment window ranging", align_window$start,"to",align_window$end ) )

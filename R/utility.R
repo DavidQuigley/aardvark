@@ -162,20 +162,30 @@ convert.VCF.REFALT.to.dash.format = function( s_ref, s_alt ){
 #' @param alignment_window aardvark::AlignmentWindow object that holds reference sequence search space for realignment
 read_to_genome_sequence = function( read, alignment_window ){
 
-    nt_width = read$cigar_ranges$ref_end[ dim(read$cigar_ranges)[1] ] - read$cigar_ranges$ref_start[ 1 ]
+    # replaced because last (or first) value can be NA if softclipped
+    # nt_width = read$cigar_ranges$ref_end[ dim(read$cigar_ranges)[1] ] - read$cigar_ranges$ref_start[ 1 ]
+    ref_max = max( read$cigar_ranges$ref_end, na.rm=TRUE )
+    ref_min = min( read$cigar_ranges$ref_start, na.rm=TRUE )
+    nt_width = ref_max - ref_min
 
-    nt = rep(".", nt_width )
-    pos = rep(0, nt_width )
-    for( i in 1:dim(read$cigar_ranges)[1]){
-        idx = (1 + read$cigar_ranges$ref_start[i] - read$pos) : (1 + read$cigar_ranges$ref_end[i] - read$pos )
-        pos[ idx ] = read$cigar_ranges$ref_start[i] : read$cigar_ranges$ref_end[i]
-        if( read$cigar_ranges$cigar_code[i]=="M" ){
-            nts = strsplit( as.character( AW_seq(alignment_window, read$cigar_ranges$ref_start[i], read$cigar_ranges$ref_end[i] ) ), "")[[1]]
-            nt[ idx ] = nts
-        }else if( read$cigar_ranges$cigar_code[i]=="D" ){
-            nt[ idx ] = "-"
-        }else if( read$cigar_ranges$cigar_code[i]=="I" ){
-            nt[ idx ] = "I"
+    if( is.na( ref_max ) | is.na(ref_min) ){
+        data.frame(pos=c(), nt=c())
+    }else{
+        nt = rep(".", nt_width )
+        pos = rep(0, nt_width )
+        for( i in 1:dim(read$cigar_ranges)[1]){
+            if( read$cigar_ranges$cigar_code[i] != "S" ){
+                idx = (1 + read$cigar_ranges$ref_start[i] - read$pos) : (1 + read$cigar_ranges$ref_end[i] - read$pos )
+                pos[ idx ] = read$cigar_ranges$ref_start[i] : read$cigar_ranges$ref_end[i]
+                if( read$cigar_ranges$cigar_code[i]=="M" ){
+                    nts = strsplit( as.character( AW_seq(alignment_window, read$cigar_ranges$ref_start[i], read$cigar_ranges$ref_end[i] ) ), "")[[1]]
+                    nt[ idx ] = nts
+                }else if( read$cigar_ranges$cigar_code[i]=="D" ){
+                    nt[ idx ] = "-"
+                }else if( read$cigar_ranges$cigar_code[i]=="I" ){
+                    nt[ idx ] = "I"
+                }
+            }
         }
     }
     data.frame( pos, nt )

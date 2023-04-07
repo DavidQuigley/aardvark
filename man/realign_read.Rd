@@ -7,8 +7,8 @@
 realign_read(
   read,
   align_window,
-  gr_pathogenic,
   pathogenic_mutation,
+  gr_pathogenic = NULL,
   allow_insertions_in_realign = TRUE,
   min_nt_for_distant_realign = 15,
   min_percent_realigned = 0.9,
@@ -21,9 +21,9 @@ realign_read(
 
 \item{align_window}{aardvark::AlignmentWindow object that holds reference sequence search space for realignment}
 
-\item{gr_pathogenic}{GenomicRanges spanning the pathogenic mutation}
-
 \item{pathogenic_mutation}{the pathogenic mutation}
+
+\item{gr_pathogenic}{GenomicRanges spanning the pathogenic mutation}
 
 \item{allow_insertions_in_realign}{whether to allow insertions in the realignment}
 

@@ -42,7 +42,7 @@ rd = aardvark::Read( qname="A00887:299:HWFYGDSXY:2:2674:25211:28682",
                      seq=DNAString("CAGCCTTAGCTTTTTACACAAGTTGTAGTAGAAAAACTTCTGTGAGTCAGACTTCATTACTTGAAGCAAAAAAAAGTTCCTTACACAAAGTTAAGGGAGTGTTAGAGGAATTTGATTTAATCAGAACTGAGCATAGTCTTCACTATTCACC"),
                      qual=qq )
 
-rd=aardvark::realign_read( rd, AW, gr_pathogenic, GM, allow_insertions_in_realign=TRUE)
+rd=aardvark::realign_read( rd, AW, pathogenic_mutation=GM, gr_pathogenic=gr_pathogenic, allow_insertions_in_realign=TRUE)
 
 expect_equal( rd$cigar_ranges$ref_start[1], 32339355)
 expect_equal( rd$cigar_ranges$ref_end[1],   32339426)
@@ -64,7 +64,7 @@ read = aardvark::Read( qname="A00887:299:HWFYGDSXY:2:2235:15501:11929",
                        pos=32339609,
                        seq=DNAString("CATTCTGATGAGGTATATAATGATATCTCTCAAAAAATAAACGATTCTGGTATTGAGCCAGTATTGAAGAATGTTGAAGATCAAAAAAACACTAGTTTTTCCAAAGTAATATCCAATGTAAAAGATGCAAATGCATACCCACAAACTGTAA"),
                        qual=rep(37, 151) )
-rd=aardvark::realign_read( read, AW, gr_pathogenic,  GM, allow_insertions_in_realign=TRUE)
+rd=aardvark::realign_read( read, AW, pathogenic_mutation=GM, gr_pathogenic=gr_pathogenic,  allow_insertions_in_realign=TRUE)
 
 # to test with BLAT: chr13:32339609-32339768
 expect_equal( rd$cigar_ranges$ref_start[1], 32339609 ); expect_equal( rd$cigar_ranges$ref_end[1], 32339629 )
@@ -87,7 +87,7 @@ read = aardvark::Read(qname="A00887:299:HWFYGDSXY:2:1533:16161:23719",
                       pos=32339768,
                       seq=DNAString("AATGATTCAGATATTTGCGTTGAGGAACTTGTGACTAGCTCTTCACCCTGCAAAAATAAAAATGCAGCCATTAAATTGTCCATATCTAATAGTAATAATTTTGAGGTAGGGCCACCTGCATTTAGGATAGCCAGTGGTAAAATCGTTTGTG"),
                       qual=rep(37, 151) )
-rd=aardvark::realign_read( read, AW, gr_pathogenic,  GM, allow_insertions_in_realign=TRUE)
+rd=aardvark::realign_read( read, AW, pathogenic_mutation=GM, gr_pathogenic=gr_pathogenic, allow_insertions_in_realign=TRUE)
 
 expect_equal( rd$cigar_ranges$ref_start[1], 32339768 ); expect_equal( rd$cigar_ranges$ref_end[1], 32339772 )
 expect_equal( rd$cigar_ranges$ref_start[2], 32339773 ); expect_equal( rd$cigar_ranges$ref_end[2], 32339773 )
@@ -114,7 +114,7 @@ read = aardvark::Read(
             seq=DNAString("AAACGATTCTGG"),
             qual=c(37,37,37,37,37,37,37,37,37,37,37,37),
             cigar="12M")
-rd=aardvark::realign_read( read, AW, gr_pathogenic,  GM, allow_insertions_in_realign=TRUE)
+rd=aardvark::realign_read( read, AW, pathogenic_mutation=GM, gr_pathogenic=gr_pathogenic, allow_insertions_in_realign=TRUE)
 expect_equal( dim( rd$cigar_ranges)[1],3 )
 expect_equal( rd$cigar_ranges$start[1], 1 )
 expect_equal( rd$cigar_ranges$end[1], 4 )
@@ -142,7 +142,7 @@ read = aardvark::Read(
     qual=c(37,37,11,37,37,37,37,37,37,37,37,37),
     cigar="12M")
 
-rd=aardvark::realign_read( read, AW, gr_pathogenic,  GM, allow_insertions_in_realign=TRUE)
+rd=aardvark::realign_read( read, AW, pathogenic_mutation=GM, gr_pathogenic=gr_pathogenic, allow_insertions_in_realign=TRUE)
 
 expect_equal( dim( rd$cigar_ranges)[1], 3 )
 expect_equal( rd$cigar_ranges$start[1], 1 )
@@ -173,7 +173,7 @@ read = aardvark::Read(
     seq=DNAString("ACGATTCTGGTA"),
     qual=c(37,37,37,37,37,37,37,37,37,37,37,37),
     cigar="12M")
-rd=aardvark::realign_read( read, AW, gr_pathogenic,  GM, allow_insertions_in_realign=TRUE)
+rd=aardvark::realign_read( read, AW, pathogenic_mutation=GM, gr_pathogenic=gr_pathogenic, allow_insertions_in_realign=TRUE)
 
 expect_equal( dim( rd$cigar_ranges)[1],3 )
 expect_equal( rd$cigar_ranges$start[1], 1 ); expect_equal( rd$cigar_ranges$end[1], 2 ); expect_equal( rd$cigar_ranges$ref_start[1], 32339656 ); expect_equal( rd$cigar_ranges$ref_end[1], 32339657 );
@@ -194,7 +194,7 @@ read = aardvark::Read(
     seq=DNAString("GATTCTGGTATT"),
     qual=c(37,37,37,37,37,37,37,37,37,37,37,37),
     cigar="12M")
-rd = aardvark::realign_read( read, AW, gr_pathogenic,  GM, allow_insertions_in_realign=TRUE)
+rd = aardvark::realign_read( read, AW, pathogenic_mutation=GM, gr_pathogenic=gr_pathogenic, allow_insertions_in_realign=TRUE)
 
 expect_equal( dim( rd$cigar_ranges)[1],1 )
 expect_equal( rd$cigar_ranges$start[1], 1 )
@@ -214,7 +214,7 @@ read = aardvark::Read(
     seq=DNAString("TTGATTCTGGTA"),
     qual=c(37,37,37,37,37,37,37,37,37,37,37,37),
     cigar="12M")
-rd = aardvark::realign_read( read, AW, gr_pathogenic,  GM, allow_insertions_in_realign=TRUE)
+rd = aardvark::realign_read( read, AW, pathogenic_mutation=GM, gr_pathogenic=gr_pathogenic, allow_insertions_in_realign=TRUE)
 
 expect_equal( dim( rd$cigar_ranges)[1],1 )
 expect_equal( rd$cigar_ranges$start[1], 1 )
@@ -233,7 +233,7 @@ read = aardvark::Read(
     seq=DNAString("GGGATTCTGGTA"),
     qual=c(37,37,37,37,37,37,37,37,37,37,37,37),
     cigar="12M")
-rd = aardvark::realign_read( read, AW, gr_pathogenic,  GM, allow_insertions_in_realign=TRUE)
+rd = aardvark::realign_read( read, AW, pathogenic_mutation=GM, gr_pathogenic=gr_pathogenic, allow_insertions_in_realign=TRUE)
 
 expect_equal( dim( rd$cigar_ranges)[1],1 )
 expect_equal( rd$cigar_ranges$start[1], 1 )
@@ -254,7 +254,7 @@ read = aardvark::Read(
     seq=DNAString("TAACGATTCTGGTA"),
     qual=c(37,37,37,37,37,37,37,37,37,37,37,37,37,37),
     cigar="2M2D12M")
-rd = aardvark::realign_read( read, AW, gr_pathogenic,  GM, allow_insertions_in_realign=TRUE)
+rd = aardvark::realign_read( read, AW, pathogenic_mutation=GM, gr_pathogenic=gr_pathogenic, allow_insertions_in_realign=TRUE)
 
 expect_equal( dim( rd$cigar_ranges)[1], 5 )
 
@@ -292,7 +292,7 @@ read = aardvark::Read(
     seq=DNAString("AAAATAAACGAT"),
     qual=c(37,37,37,37,37,37,37,37,37,37,37,37),
     cigar="12M")
-rd = aardvark::realign_read( read, AW, gr_pathogenic,  GM, allow_insertions_in_realign=TRUE)
+rd = aardvark::realign_read( read, AW, pathogenic_mutation=GM, gr_pathogenic=gr_pathogenic, allow_insertions_in_realign=TRUE)
 
 expect_equal( dim( rd$cigar_ranges)[1],3 )
 expect_equal( rd$cigar_ranges$start[1], 1 )
@@ -321,7 +321,7 @@ read = aardvark::Read(
     seq=DNAString("AAAATAAACCAT"),
     qual=c(37,37,37,37,37,37,37,37,37,37,37,37),
     cigar="12M")
-rd = aardvark::realign_read( read, AW, gr_pathogenic,  GM, allow_insertions_in_realign=TRUE)
+rd = aardvark::realign_read( read, AW, pathogenic_mutation=GM, gr_pathogenic=gr_pathogenic, allow_insertions_in_realign=TRUE)
 
 expect_equal( dim( rd$cigar_ranges)[1], 3 )
 expect_equal( rd$cigar_ranges$start[1], 1 )
@@ -352,7 +352,7 @@ read = aardvark::Read(
     seq=DNAString("AAAATAAACGAA"),
     qual=c(37,37,37,37,37,37,37,37,37,37,37,11),
     cigar="12M")
-rd = aardvark::realign_read( read, AW, gr_pathogenic,  GM, allow_insertions_in_realign=FALSE)
+rd = aardvark::realign_read( read, AW, pathogenic_mutation=GM, gr_pathogenic=gr_pathogenic, allow_insertions_in_realign=FALSE)
 
 expect_equal( dim( rd$cigar_ranges)[1],3 )
 expect_equal( rd$cigar_ranges$start[1], 1 )
@@ -380,7 +380,7 @@ read = aardvark::Read(
     seq=DNAString("AAAATAAACGAA"),
     qual=c(37,37,37,37,37,37,37,37,37,37,37,11),
     cigar="12M")
-expect_error( aardvark::realign_read( read, AW, gr_pathogenic,  GM, allow_insertions_in_realign=TRUE) )
+expect_error( aardvark::realign_read( read, AW, pathogenic_mutation=GM, gr_pathogenic=gr_pathogenic, allow_insertions_in_realign=TRUE) )
 #expect_equal( dim( rd$cigar_ranges)[1], 1)
 #expect_equal( rd$cigar_ranges$cigar_code[1], "M")
 #expect_equal( rd$cigar_ranges$width[1], 12)
@@ -397,7 +397,7 @@ read = aardvark::Read(
     seq=DNAString("ACGATTCTGGTA"),
     qual=c(37,37,37,37,37,37,37,37,37,37,37,37),
     cigar="2S10M")
-rd = aardvark::realign_read( read, AW, gr_pathogenic,  GM, allow_insertions_in_realign=TRUE)
+rd = aardvark::realign_read( read, AW, pathogenic_mutation=GM, gr_pathogenic=gr_pathogenic, allow_insertions_in_realign=TRUE)
 
 expect_equal( dim( rd$cigar_ranges)[1],3 )
 expect_equal( rd$cigar_ranges$start[1], 1 )
@@ -438,7 +438,7 @@ read = aardvark::Read( qname="A00887:299:HWFYGDSXY:2:2235:15501:11929",
                        pos=32339609,
                        seq=DNAString("CATTCTGATGAGGTATATAATGATATCTCTCAAAAAATAAACGATTCTGGTATTGAGCCAGTATTGAAGAATGTTGAAGATCAAAAAAACACTAGTTTTTCCAAAGTAATATCCAATGTAAAAGATGCAAATGCATACCCACAAACTGTAA"),
                        qual=rep(37, 151) )
-rd = aardvark::realign_read( read, AW, gr_pathogenic,  GM, allow_insertions_in_realign=TRUE)
+rd = aardvark::realign_read( read, AW, pathogenic_mutation=GM, gr_pathogenic=gr_pathogenic, allow_insertions_in_realign=TRUE)
 rd = aardvark::assess_reversion(rd, transcript_BRCA2, GM, AW, min_nt_qual=20, gr_pathogenic = gr_pathogenic, gr_exclude = AW$homopolymer_regions)
 expect_equal( rd$evidence, "reversion_read_includes_pathogenic_variant" )
 
@@ -455,7 +455,7 @@ read = aardvark::Read( qname="A00887:299:HWFYGDSXY:2:2235:15501:11929",
                        pos=32339660,
                        seq=DNAString("GATTCTGGTATTGAGCCAGTATTAAGAATGTTGAAGATCAAAAAAACACTAGTTTTTCCAAAGTAATATCCAATGTAAAAGATGCAAATGCATACCCACA"),
                        qual=rep(37, 100) )
-rd = aardvark::realign_read( read, AW, gr_pathogenic,  GM, allow_insertions_in_realign=TRUE)
+rd = aardvark::realign_read( read, AW, pathogenic_mutation=GM, gr_pathogenic=gr_pathogenic, allow_insertions_in_realign=TRUE)
 rd = aardvark::assess_reversion(rd, transcript_BRCA2, GM, AW,  min_nt_qual=20, gr_pathogenic = gr_pathogenic, gr_exclude = AW$homopolymer_regions)
 expect_equal( rd$evidence, "read_not_informative" )
 
@@ -473,7 +473,7 @@ read = aardvark::Read( qname="A00887:299:HWFYGDSXY:2:2235:15501:11929",
                        pos=32339660,
                        seq=DNAString("GATCTGGTATTGAGCCAGTATTGAAGAATGTTGAAGATCAAAAAAACACTAGTTTTTCCAAAGTAATATCCAATGTAAAAGATGCAAATGCATACCCACA"),
                        qual=rep(37, 100) )
-rd = aardvark::realign_read( read, AW, gr_pathogenic,  GM, allow_insertions_in_realign=TRUE)
+rd = aardvark::realign_read( read, AW, pathogenic_mutation=GM, gr_pathogenic=gr_pathogenic, allow_insertions_in_realign=TRUE)
 rd = aardvark::assess_reversion(rd, transcript_BRCA2, GM, AW, min_nt_qual=20, gr_pathogenic = gr_pathogenic, gr_exclude = AW$homopolymer_regions)
 expect_equal( rd$evidence, "reversion_read_does_not_include_pathogenic_variant" )
 
@@ -491,7 +491,7 @@ read = aardvark::Read(
     seq=DNAString("AAACGATTCTGGTA"),
     qual=c(37,37,37,37,37,37,37,37,37,37,37,37,37,37),
     cigar="4M2D10M")
-rd = aardvark::realign_read( read, AW, gr_pathogenic,  GM, allow_insertions_in_realign=TRUE)
+rd = aardvark::realign_read( read, AW, pathogenic_mutation=GM, gr_pathogenic=gr_pathogenic, allow_insertions_in_realign=TRUE)
 rd = aardvark::assess_reversion(rd, transcript_BRCA2, GM, AW, min_nt_qual=20, gr_pathogenic = gr_pathogenic, gr_exclude = AW$homopolymer_regions)
 expect_equal( rd$evidence, "read_harbors_pathogenic_variant_no_reversion")
 expect_equal( rd$pathogenic_is_deleted, FALSE)
@@ -508,7 +508,7 @@ gr_pathogenic = aardvark::genomicRangesFromMutation(GM)
 AW = aardvark::AlignmentWindow( BSgenome.Hsapiens.UCSC.hg38, chrom="chr11",
                                 GM$pos - 300, GM$pos + 300,
                                 min_length_for_homopolymer = 5   )
-rd=aardvark::realign_read( read, AW, gr_pathogenic, GM, allow_insertions_in_realign=TRUE)
+rd=aardvark::realign_read( read, AW, pathogenic_mutation=GM, gr_pathogenic=gr_pathogenic, allow_insertions_in_realign=TRUE)
 rd = assess_reversion( rd, transcript_ATM, GM, AW)
 
 # Test code in assess_reversion to check for homopolymers
@@ -540,7 +540,7 @@ rd = aardvark::Read( qname="HWI-D00108:1315:HFG52BCX3:1:1104:17461:26128",
                      pos=43093800,
                      seq=DNAString("TTCTTTTTCGAGTGATTCTATTGGGTTAGGATTTTTCTCATTCTGAATAGAATCACCTTTTGTTTTATTCTCATGACCATTCTGCTCCGTTTGGTTAGTT"),
                      qual=rep(37, 100))
-rd=aardvark::realign_read( rd, AW, gr_pathogenic, GM, allow_insertions_in_realign=TRUE)
+rd=aardvark::realign_read( rd, AW, pathogenic_mutation=GM, gr_pathogenic=gr_pathogenic, allow_insertions_in_realign=TRUE)
 expect_equal( rd$cigar_ranges$ref_start[1], 43093800)
 expect_equal( rd$cigar_ranges$ref_end[1],   43093878)
 expect_equal( rd$cigar_ranges$ref_start[2], 43093879)
@@ -677,7 +677,7 @@ rd = aardvark::Read( qname="M02686:40:000000000-AWR5W:1:1117:17683:24081",
                      pos=32330901,
                      seq=DNAString("AAACTATAATTTTTGCAGAATGTGAAAAGCTATTTTTCCAATCATGATGAAAGTCTGAAGAAAAATGATAGATTTATCGCTTCTGTGACAGACAGTGAAAACACAAATCAAAGAAGTCATGGTAAGTCCTCTGTTTAGTTGAACTACAGGTTTTTTTGTTG"),
                      qual=rep(37, 161))
-rd=aardvark::realign_read( rd, AW, gr_pathogenic, GM, allow_insertions_in_realign=TRUE)
+rd=aardvark::realign_read( rd, AW, pathogenic_mutation=GM, gr_pathogenic=gr_pathogenic, allow_insertions_in_realign=TRUE)
 rd = aardvark::assess_reversion(rd, transcript_BRCA1, pathogenic=GM, align_window=AW, min_nt_qual=20, gr_pathogenic = gr_pathogenic, gr_exclude = AW$homopolymer_regions)
 expect_equal( rd$evidence, "reversion_read_includes_pathogenic_variant")
 

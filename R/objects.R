@@ -145,6 +145,9 @@ BamData = function( fn_bam, chrom, start, end ){
         pos = bb[[1]]$pos,
         seq = as.character( bb[[1]]$seq ),
         stringsAsFactors=FALSE)
+    keep = which( reads$pos >= start & reads$pos <= end )
+    reads = reads[keep,]
+    qualities = qualities[ keep ]
     list( reads=reads, qualities=qualities, N = dim(reads)[1] )
 }
 
