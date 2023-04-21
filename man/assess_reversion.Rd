@@ -42,13 +42,13 @@ GenomicRangesList value to gr_exclude can reduce this source of technical artifa
 
 Possible values for the evidence column:
 \itemize{
-  \item read_not_informative
-  \item read_harbors_variant_in_excluded_region (e.g. a possible homopolymer artifact)
-  \item read_harbors_pathogenic_variant_no_reversion
-  \item read_harbors_splice_site_mutation_no_reversion (splice mutation may be the pathogenic variant)
-  \item reversion_read_includes_pathogenic_variant
-  \item reversion_read_deletion_spans_pathogenic_variant
-  \item reversion_read_does_not_include_pathogenic_variant
+\item read_not_informative
+\item read_harbors_variant_in_excluded_region (e.g. a possible homopolymer artifact)
+\item read_harbors_pathogenic_variant_no_reversion
+\item read_harbors_splice_site_mutation_no_reversion (splice mutation may be the pathogenic variant)
+\item reversion_read_includes_pathogenic_variant
+\item reversion_read_deletion_spans_pathogenic_variant
+\item reversion_read_does_not_include_pathogenic_variant
 }
 }
 \description{

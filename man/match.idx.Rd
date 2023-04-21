@@ -2,7 +2,7 @@
 % Please edit documentation in R/utility.R
 \name{match.idx}
 \alias{match.idx}
-\title{return indices into A and B restricted to perfect matches where idx.A[i] == idx.B[i] for each i in matched pairs}
+\title{return indices into A and B restricted to perfect matches where idx.A == idx.B for each i in matched pairs}
 \usage{
 match.idx(A, B, allow.multiple.B = FALSE)
 }
@@ -14,5 +14,5 @@ match.idx(A, B, allow.multiple.B = FALSE)
 \item{allow.multiple.B}{If true, A->B can be one to many; otherwise return first match}
 }
 \description{
-return indices into A and B restricted to perfect matches where idx.A[i] == idx.B[i] for each i in matched pairs
+return indices into A and B restricted to perfect matches where idx.A == idx.B for each i in matched pairs
 }

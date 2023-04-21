@@ -25,11 +25,11 @@ are:
 }
 \details{
 \itemize{
-  \item isDuplicate=FALSE
-  \item isPaired=TRUE
-  \item isUnmappedQuery=FALSE
-  \item isSecondaryAlignment=FALSE
-  \item isSupplementaryAlignment=FALSE
-  \item isNotPassingQualityControls=FALSE
+\item isDuplicate=FALSE
+\item isPaired=TRUE
+\item isUnmappedQuery=FALSE
+\item isSecondaryAlignment=FALSE
+\item isSupplementaryAlignment=FALSE
+\item isNotPassingQualityControls=FALSE
 }
 }

@@ -20,9 +20,9 @@ a) cigar ref_start and ref_end refer to the section that was originally there
 b) cigar ref_start and ref_end refer to the new genomic location
 I chose option A. Option A means that a 7 base deletion looks like:
 start end width cigar_code_original cigar_code ref_start  ref_end
-    1  21    21                   M          M  32339609 32339629
-   22  21     7                   D          D  32339630 32339636
-   22  42    21                   M          M  32339637 32339657
+1  21    21                   M          M  32339609 32339629
+22  21     7                   D          D  32339630 32339636
+22  42    21                   M          M  32339637 32339657
 }
 \details{
 the end of the deletion on the second line is rolled back to the start (21) because it doesn't take
@@ -31,12 +31,12 @@ deleted (32339630 through 32339636, seven nucleotides using the UCSC 0-1 address
 
 For a 3 base insertion:
 start end width cigar_code_original cigar_code ref_start  ref_end
-    1   5     5                   M          M  32339768 32339772
-    6   8     3                   I          I  32339773 32339773
-    9 151   143                   M          M  32339773 32339915
+1   5     5                   M          M  32339768 32339772
+6   8     3                   I          I  32339773 32339773
+9 151   143                   M          M  32339773 32339915
 
 The start and end of the deletion on the second line are 6-8 because the three inserted bases
-take up three spaces in the read. The ref_start and reF_end meanwhile are not updated because
+take up three spaces in the read. The ref_start and ref_end meanwhile are not updated because
 the insertion does not exist in reference space, so the ref_start for the insertion on line 2
 and the Match segment on line 3 are the same. The ref_start value indicates the position at
 which the insertion took place; we use this information in translate_cigar.

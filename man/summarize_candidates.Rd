@@ -4,23 +4,25 @@
 \alias{summarize_candidates}
 \title{Report candidate reversions from a list of Reads}
 \usage{
-summarize_candidates(reads, transcript)
+summarize_candidates(reads, transcript, pathogenic_mutation)
 }
 \arguments{
 \item{reads}{A list of aardvark::Read objects}
 
 \item{transcript}{An aardvark::TranscriptData object describing the genomic region being analyzed}
+
+\item{pathogenic_mutation}{aardvark::Mutation object describing pathogenic mutation}
 }
 \value{
 a list with the summary dataframe, cigar ranges for each allele, read names for each allee, and number of unreverted reads.
 Possible values for the evidence column in the summary dataframe:
 \itemize{
-  \item read_not_informative
-  \item read_harbors_variant_in_excluded_region (e.g. a possible homopolymer artifact)
-  \item read_harbors_pathogenic_variant_no_reversion
-  \item reversion_read_includes_pathogenic_variant
-  \item reversion_read_deletion_spans_pathogenic_variant
-  \item reversion_read_does_not_include_pathogenic_variant
+\item read_not_informative
+\item read_harbors_variant_in_excluded_region (e.g. a possible homopolymer artifact)
+\item read_harbors_pathogenic_variant_no_reversion
+\item reversion_read_includes_pathogenic_variant
+\item reversion_read_deletion_spans_pathogenic_variant
+\item reversion_read_does_not_include_pathogenic_variant
 }
 }
 \description{
