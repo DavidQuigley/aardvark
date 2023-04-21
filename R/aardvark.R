@@ -68,6 +68,7 @@ realign_left_softclip = function( read, min_percent_realigned, align_window ){
     clipped_width = read$cigar_ranges$end[1] - read$cigar_ranges$start[1] + 1
     clipped_seq = str_sub( as.character( read$seq ), 1, clipped_width )
     align_result = realign_sequence_in_region( ref_pos = align_window$start, align_window$seq, clipped_seq )
+    read_original = read
 
     if( align_result$longest_alignment >= clipped_width * min_percent_realigned ){
         existing_row = read$cigar_ranges[1,]
@@ -88,6 +89,15 @@ realign_left_softclip = function( read, min_percent_realigned, align_window ){
         read$has_realigned_softclipped=TRUE
         read$has_realigned_softclipped_left=TRUE
     }
+    # special case: a positive strand tandem dup creates an deletion that is reported as negative length;
+    # the aligned right-clipped section actually appears in front of the aligned section to the left.
+    # this produces a negative width from the arithmetic above. For now we are not going to handle this
+    # case.
+    idx_tandem_dup = which( read$cigar_ranges$width<1 & read$cigar_ranges$cigar_code=="D")
+    if( length( idx_tandem_dup ) > 0 ){
+        read=read_original
+    }
+
     read
 }
 
@@ -104,6 +114,7 @@ realign_right_softclip = function( read, min_percent_realigned, align_window){
     clipped_seq = str_sub( as.character( read$seq ), read$cigar_ranges$start[ii], read$cigar_ranges$end[ii] )
     align_result = realign_sequence_in_region(ref_pos = align_window$start, align_window$seq, clipped_seq)
 
+    read_original = read
     if( align_result$longest_alignment >= clipped_width * min_percent_realigned ){
         # for soft clipping, read position is reported as last non-clipped locus
         # newly detected deletion starts at ref_end and moves to pos, the first aligned position.
@@ -125,6 +136,15 @@ realign_right_softclip = function( read, min_percent_realigned, align_window){
         read$has_del=TRUE
         read$has_realigned_softclipped=TRUE
         read$has_realigned_softclipped_right=TRUE
+    }
+
+    # special case: a positive strand tandem dup creates an deletion that is reported as negative length;
+    # the aligned right-clipped section actually appears in front of the aligned section to the left.
+    # this produces a negative width from the arithmetic above. For now we are not going to handle this
+    # case.
+    idx_tandem_dup = which( read$cigar_ranges$width<1 & read$cigar_ranges$cigar_code=="D")
+    if( length( idx_tandem_dup ) > 0 ){
+        read = read_original
     }
     read
 }
@@ -186,7 +206,8 @@ realign_repeat_pathogenic_deletions = function( read,
         # test if pathogenic is in read from start and end and is a deletion
         idx_mut = which( ss$pos == pathogenic_mutation$pos )
         if( length(idx_mut) == 1 ){
-            if( (idx_mut + mut_len - 1 <= dim(ss)[1] ) &
+            if( (idx_mut + (2*mut_len) - 1 <= dim(ss)[1] ) &
+                (idx_mut - (2*mut_len) > 0 ) &
                 sum( read$cigar_ranges$cigar_code == "D") > 0 ){
                 # walk through pathogenic: if for all pathogenic loci
                 #   present in ss at pathogenic and absent at 3p adjacent and values are repeated
@@ -388,7 +409,7 @@ realign_read = function( read,
 #'     9 151   143                   M          M  32339773 32339915
 #'
 #' The start and end of the deletion on the second line are 6-8 because the three inserted bases
-#' take up three spaces in the read. The ref_start and reF_end meanwhile are not updated because
+#' take up three spaces in the read. The ref_start and ref_end meanwhile are not updated because
 #' the insertion does not exist in reference space, so the ref_start for the insertion on line 2
 #' and the Match segment on line 3 are the same. The ref_start value indicates the position at
 #' which the insertion took place; we use this information in translate_cigar.
@@ -599,7 +620,19 @@ locally_realign_read = function( read,
                 (n_new_inserts==0 | allow_insertions_in_realign) ){
                 read = rebuild_read_from_realignment( read, rr_combined )
                 read$cigar_ranges = rbind( read$cigar_ranges, cigar_preserve )
-                read$cigar_ranges = read$cigar_ranges[order( read$cigar_ranges$start ), ]
+                #read$cigar_ranges = read$cigar_ranges[order( read$cigar_ranges$start ), ]
+                read$cigar_ranges = read$cigar_ranges[order( read$cigar_ranges$ref_start ), ]
+                pos_cur=1
+                for(i in 1:dim(read$cigar_ranges)[1]){
+                    read$cigar_ranges$start[i] = pos_cur
+                    if( read$cigar_ranges$cigar_code[i] != "D"){
+                        read$cigar_ranges$end[i] = pos_cur + read$cigar_ranges$width[i] - 1
+                        pos_cur = read$cigar_ranges$end[i] + 1
+                    }else{
+                        read$cigar_ranges$end[i] = read$cigar_ranges$start[i]
+                    }
+                }
+                read$pos = min( read$cigar_ranges$ref_start[ read$cigar_ranges$cigar_code  != "S" ] )
                 read$has_realigned_read_end = TRUE
                 read$has_realigned_softclipped = TRUE
                 if( realign_side == "right" ){
@@ -1008,7 +1041,7 @@ encode_variants = function( rd ){
 #'
 #' @param reads A list of aardvark::Read objects
 #' @param transcript An aardvark::TranscriptData object describing the genomic region being analyzed
-#'
+#' @param pathogenic_mutation aardvark::Mutation object describing pathogenic mutation
 #' @return a list with the summary dataframe, cigar ranges for each allele, read names for each allee, and number of unreverted reads.
 #' Possible values for the evidence column in the summary dataframe:
 #' \itemize{
@@ -1020,11 +1053,14 @@ encode_variants = function( rd ){
 #'   \item reversion_read_does_not_include_pathogenic_variant
 #' }
 #' @export
-summarize_candidates = function( reads, transcript ){
+summarize_candidates = function( reads, transcript, pathogenic_mutation ){
     pos = c()
+    chroms = c()
+    transcript_id = c()
     evidence = c()
     realigned = c()
     n_obs = c()
+    muts = c()
     list_cigar_ranges = list()
     list_qnames = c()
     hsh_cigar = hsh_new()
@@ -1055,6 +1091,9 @@ summarize_candidates = function( reads, transcript ){
                 }
                 list_qnames = c( list_qnames, list( c( rr$qname ) ) )
                 pos = c( pos, pos_first )
+                chroms = c( chroms, rr$chrom )
+                muts = c( muts, encode_variants( pathogenic_mutation ) )
+                transcript_id = c( transcript_id, transcript$transcript_id )
                 evidence = c( evidence, rr$evidence )
                 n_obs = c(n_obs, 1 )
                 list_cigar_ranges = c( list_cigar_ranges, list( rr$cigar_ranges ) )
@@ -1069,8 +1108,12 @@ summarize_candidates = function( reads, transcript ){
         }
     }
     df_sum = data.frame( N = n_obs,
+                         reversion=encodings,
                          evidence,
                          pos = pos,
+                         chrom = chroms,
+                         transcript_id = transcript_id,
+                         pathogenic_mutation = muts,
                          row.names = encodings,
                          stringsAsFactors = FALSE)
     if( dim(df_sum)[1] == 0 ){
@@ -1080,6 +1123,9 @@ summarize_candidates = function( reads, transcript ){
             N=c(),
             evidence=c(),
             pos=c(),
+            chrom=c(),
+            transcript_id = c(),
+            pathogenic_mutation = c(),
             read_qname=c()
         )
     }

@@ -163,12 +163,6 @@ BamData = function( fn_bam, chrom, start, end ){
 #' @export
 read_from_BamData = function( bamdata, read_index ){
     # wrapper to make it easier for end user to iterate through ScanBam lists
-    # aardvark::Read( qname = read_list[[1]]$qname[ read_index ],
-    #                 cigar = read_list[[1]]$cigar[ read_index ],
-    #                 chrom = as.character( read_list[[1]]$rname[ read_index ] ),
-    #                 pos = read_list[[1]]$pos[ read_index ],
-    #                 seq = read_list[[1]]$seq[ read_index ][[1]],
-    #                 qual = read_list[[1]]$qual[ read_index ] )
     aardvark::Read( qname = bamdata$reads$qname[ read_index ],
                     cigar = bamdata$reads$cigar[ read_index ],
                     chrom = bamdata$reads$chrom[ read_index ],
@@ -330,7 +324,8 @@ TranscriptData = function( biomart_object, ensdb_object, transcript_id ){
                                     exon_id=tr_exon_id,
                                     strand=rep(strand, length(tr_seq)),
                                     is_splice=tr_splice_junction,
-                                    stringsAsFactors=FALSE)
+                                    stringsAsFactors=FALSE),
+          transcript_id = transcript_id
     )
 }
 

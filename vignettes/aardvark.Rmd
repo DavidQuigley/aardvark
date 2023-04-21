@@ -1,8 +1,11 @@
 ---
-title: "An Automated Reversion Detector for Variants Affecting Resistance Kinetics"
-output: rmarkdown::html_vignette
+title: "AARDVARK: An Automated Reversion Detector for Variants Affecting Resistance Kinetics"
+output: 
+  rmarkdown::html_document:
+   toc: true
+   toc_depth: 3
 vignette: >
-  %\VignetteIndexEntry{An Automated Reversion Detector for Variants Affecting Resistance Kinetics}
+  %\VignetteIndexEntry{AARDVARK: An Automated Reversion Detector for Variants Affecting Resistance Kinetics}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -20,10 +23,6 @@ library(knitr)
 suppressPackageStartupMessages( require( BSgenome.Hsapiens.UCSC.hg38, quietly=TRUE, warn.conflicts=FALSE ) )
 ```
 
-# AARDVARK
-
-**An Automated Reversion Detector for Variants Affecting Resistance Kinetics**
-
 David Quigley, PhD  
 UCSF Department of Urology
 
@@ -37,15 +36,15 @@ Detecting reversion mutations by hand is tedious and requires expert curation by
 
 ## A workflow for calling reversion mutations
 
-1) align and index raw sequence data 
-2) define one or more pathogenic variants that inactivate a gene of interest
-3) Run AARDVARK to realign all of the reads within a window around the variant and interpret whether they produce a reversion
+1) Align and index raw sequence data from a solid or liquid tumor biopsy
+2) Define one or more pathogenic variants that inactivate a gene of interest (e.g. a BRCA2 two nucleotide deletion)
+3) Run AARDVARK to realign all of the reads within a window around the pathogenic variant(s) and interpret whether any reads support a reversion mutation
  
-While in principle you can run AARDVARK by manually defining DNA reads, in practice one specifies a window in which to test all of the reads in an aligned DNA sequence file. Command line scripts are provided to produce reports without writing any code. Pathogenic variants to interrogate can be read from a standard VCF file.
+Command line scripts are provided to produce reports from standard file types (sequence data in BAM format and pathogenic variants in VCF format) without writing any code. 
 
 ## Example: manually define a read and pathogenic variant
 
-In this first example we'll create a read manually. 
+In this first example we'll create read and variant objects manually; normally AARDVARK would create these object by scanning a BAM and VCF file.
 
 First, we'll **define a pathogenic mutation** in the *BRCA2* gene. The *seq_ref* and *seq_alt* parameters are written as they would be in a VCF file. In this case a two nucleotide deletion of *TT* at chromosome 13 positions 32339658 and 32339659 is represented as a variant starting at position 32339657 changing from *CTT* to *C*.
 
@@ -70,7 +69,7 @@ AW = aardvark::AlignmentWindow( Hsapiens_version = BSgenome.Hsapiens.UCSC.hg38,
                                 window_end = window_end)
 ```
 
-Now we'll **create a read object**. This example read was aligned by *bwa* to start with a 72 nucleotide soft clip, followed by a 79 nucleotide perfect match. This information is encoded in a CIGAR string.
+Now we'll **create a read object**. This example read was aligned by *bwa* to start with a 72 nucleotide soft clip, followed by a 79 nucleotide perfect match. The alignment *bwa* chose is encoded in a [CIGAR](https://en.wikipedia.org/wiki/Sequence_alignment#Representations) string.
 
 ```{r}
 read_nt = "CAGCCTTAGCTTTTTACACAAGTTGTAGTAGAAAAACTTCTGTGAGTCAGACTTCATTACTTGAAGCAAAAAAAAGTTCCTTACACAAAGTTAAGGGAGTGTTAGAGGAATTTGATTTAATCAGAACTGAGCATAGTCTTCACTATTCACC"
@@ -82,7 +81,7 @@ read_original = aardvark::Read( qname="A00887:299:HWFYGDSXY:2:2674:25211:28682",
                      qual = rep(37, 151) )
 ```
 
-We can inspect the cigar ranges of the original read:
+We can inspect the cigar ranges of the original read to show the alignment:
 
 ```{r}
 kable( read_original$cigar_ranges )
@@ -96,7 +95,8 @@ read_realigned = aardvark::realign_read( read = read_original,
                                          pathogenic_mut)
 ```
 
-The corrected alignment has a large deletion flanked by two perfect matches. 
+The corrected alignment has a large deletion flanked by two perfect matches. We will discover that this deletion spans the pathogenic mutation, removing it while leaving the *BRCA2* gene in frame.
+
 ```{r}
 kable( read_realigned$cigar_ranges )
 ```
@@ -110,9 +110,44 @@ read_realigned = aardvark::assess_reversion(read = read_realigned,
                                             align_window = AW)
 
 read_summary = aardvark::summarize_candidates( list( read_realigned ), 
-                                               transcript=aardvark::transcript_BRCA2 )
+                                               transcript=aardvark::transcript_BRCA2,
+                                               pathogenic_mutation = pathogenic_mut)
 
 kable( read_summary$summary )
 ```
 
 The read is predicted to produce a reversion.
+
+We can plot this reversion:
+
+```{r, fig.width=8, fig.height=4}
+
+library( BSgenome.Hsapiens.UCSC.hg38 )
+library( biomaRt )
+obj.BM =  useEnsembl(biomart = "ENSEMBL_MART_ENSEMBL", 
+                         dataset = "hsapiens_gene_ensembl")
+aardvark::plot_reversion_summary(read_summary$summary, 
+                               genome_version = 38,
+                               hsapiens_object = BSgenome.Hsapiens.UCSC.hg38,
+                               biomart_object = obj.BM,
+                               pos_start = 32339000,
+                               pos_end = 32341952,
+                               min_freq = 1,
+                               text_size_adjustment=1)
+                                 
+
+```
+
+
+## Assessments from AARDVARK
+
+After a call to *assess_reversion*, the read object has a string value for evidence. This is AARDVARK's interpretation of the read's consequence. The possible values are:
+
+* *read_not_informative*, meaning that AARDVARK cannot use this read to assess a reversion. Possible reasons would include it is too far away, in an intron region not predicted to affect splicing, or it could not be re-aligned. 
+* *read_harbors_variant_in_excluded_region*, meaning that the read overlaps a region that marks it as unreliable. The main reason for this annotation would be the read overlaps a homopolymer region, which are a frequent source of sequencing errors on Illumina instruments. 
+* *read_harbors_pathogenic_variant_no_reversion*, meaining that AARDVARK detected the pathogenic variant but did not identify any other alterations in the read that would produce a reversion. Knowing how many of these reads are observed is helpful for assessing the proportion of reverted to un-reverted reads.
+* *read_harbors_splice_site_mutation_no_reversion*, meaning this read includes a predicted splice-acceptor or splice-donor mutation and isn't currently anticipated to produce a reversion. The splice mutation may be the pathogenic variant
+* *reversion_read_includes_pathogenic_variant*, meaning the read includes both the original pathogenic mutation and a reversion alteration. These are the strongest evidence for a reversion, because the pathogenic mutation and the reversion mutation must have been on the same strand of DNA that was sequenced.
+* *reversion_read_deletion_spans_pathogenic_variant*, meaning that the read is predicted to produce a reversion and includes a deletion that spans the pathogenic variant, producing an in-frame gene.
+* *reversion_read_does_not_include_pathogenic_variant*, meaning the read is predicted to produce a reversion but the read does not cover the pathogenic mutation. One example of this would be a read that includes deletion that is downstream from a pathogenic deletion, and is predicted to produce a reversion. This form of evidence is less strong than *reversion_read_includes_pathogenic_variant*, since the evaluation relies on the inference that the mutation in the read came from the same DNA strand as the pathogenic mutation, but we can't formally show that with this read. Usually tumors lose the wild-type allele of a pathogenic allele by DNA copy loss.
+

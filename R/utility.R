@@ -57,7 +57,7 @@ hsh_set = function( H, key, value ){
 }
 
 
-#' return indices into A and B restricted to perfect matches where idx.A[i] == idx.B[i] for each i in matched pairs
+#' return indices into A and B restricted to perfect matches where idx.A == idx.B for each i in matched pairs
 #'
 #' @param A vector
 #' @param B vector
@@ -176,9 +176,16 @@ read_to_genome_sequence = function( read, alignment_window ){
         for( i in 1:dim(read$cigar_ranges)[1]){
             if( read$cigar_ranges$cigar_code[i] != "S" ){
                 idx = (1 + read$cigar_ranges$ref_start[i] - read$pos) : (1 + read$cigar_ranges$ref_end[i] - read$pos )
-                pos[ idx ] = read$cigar_ranges$ref_start[i] : read$cigar_ranges$ref_end[i]
+                positions = read$cigar_ranges$ref_start[i] : read$cigar_ranges$ref_end[i]
+                if( length(positions) != length(idx ) ){
+                    print( "debug me")
+                }
+                pos[ idx ] = positions
                 if( read$cigar_ranges$cigar_code[i]=="M" ){
                     nts = strsplit( as.character( AW_seq(alignment_window, read$cigar_ranges$ref_start[i], read$cigar_ranges$ref_end[i] ) ), "")[[1]]
+                    if( length( nts ) != length( idx ) ){
+                        print( "debug me" )
+                    }
                     nt[ idx ] = nts
                 }else if( read$cigar_ranges$cigar_code[i]=="D" ){
                     nt[ idx ] = "-"

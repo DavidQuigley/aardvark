@@ -7,7 +7,7 @@ export( AlignmentWindow )
 export( Mutation )
 export( realign_read )
 export( assess_reversion )
-export( plot_reversion_summary_from_file )
+export( plot_reversion_summary )
 
 importFrom("utils", "write.table", "read.table")
 importFrom("graphics", "axis", "box", "rect")

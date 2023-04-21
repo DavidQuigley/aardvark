@@ -31,7 +31,23 @@ expect_equal( length( AW$homopolymer_regions ), 62)
 expect_equal( start(AW$homopolymer_regions)[1], 32336786)
 expect_equal( end(AW$homopolymer_regions)[1], 32336790)
 
+
 # soft clipped split read deletion
+
+qq=rep(37, 151)
+qq[145] = 25
+qq[146] = 11
+rd = aardvark::Read( qname="test",
+                     cigar="58S93M",
+                     chrom="chr13",
+                     pos=32336878,
+                     seq=DNAString("CTGTCAATCCAGACTCTGAAGAACTTTTCTCAGACAATGAGAATAATTTTGTCTTCCAAGTAGCATCACCTTCAAGAAAGGTACAATTCAACCAAAACACAAATCTAAGAGTAATCCAAAAAAATCAAGAAGAAACTACTTCAATTTCAAA"),
+                     qual=qq)
+rd=aardvark::realign_read( rd, AW, pathogenic_mutation=GM, gr_pathogenic=gr_pathogenic, allow_insertions_in_realign=TRUE)
+
+# TODO: this has an inversion, and should look like the original
+
+
 qq=rep(37, 151)
 qq[70]=25
 qq[145]=25
