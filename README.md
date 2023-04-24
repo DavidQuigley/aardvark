@@ -133,4 +133,4 @@ so on my installation the *realign_BAM_region_from_VCF.R* script is at
 
 ### Example data
 
-To try out AARDVARK on a real BAM file, you can [download a small segment of an indexed BAM file and paired VCF](https://quigleylab.ucsf.edu/publications/2023/aardvark_example.tar.gz) that is suitable for AARDVARK. Note that this BAM file only includes a tiny piece of sequence surrounding the pathogenic mutation on *BRCA2* and cannot be used to reconstruct anything else about the genome from this person.
+To try out AARDVARK on a real BAM file, you can [download a small segment of an indexed BAM file and paired VCF](https://doi.org/10.5281/zenodo.7860648) that is suitable for AARDVARK. Note that this BAM file only includes a tiny piece of sequence surrounding the pathogenic mutation on *BRCA2* and cannot be used to reconstruct anything else about the genome from this person.
