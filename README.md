@@ -131,16 +131,6 @@ On my current build *.libPaths()* returns
 so on my installation the *realign_BAM_region_from_VCF.R* script is at  
 */Library/Frameworks/R.framework/Versions/4.2-arm64/Resources/library/aardvark/exec/realign_BAM_region_from_VCF.R*
 
-```
-cd /data1/datasets_1/human_prostate_WCDT/dna_PARPi_reversion/processed/patient2
-Rscript /opt/R/4.1.2/lib/R/library/aardvark/exec/realign_BAM_region_from_VCF.R \
-  --sample_id test \
-  --fn_bam aardvark_example.bam \
-  --window_size 4000 \
-  --genome_draft 38 \
-  --proxy_http http://marlowe-proxy:3128 \
-  --proxy_https https://marlowe-proxy:3128 \
-  --fn_vcf aardvark_example.vcf \
-  --dir_out .
- 
+### Example data
 
+To try out AARDVARK on a real BAM file, you can [download a small segment of an indexed BAM file and paired VCF](https://quigleylab.ucsf.edu/publications/2023/aardvark_example.tar.gz) that is suitable for AARDVARK. Note that this BAM file only includes a tiny piece of sequence surrounding the pathogenic mutation on *BRCA2* and cannot be used to reconstruct anything else about the genome from this person.
