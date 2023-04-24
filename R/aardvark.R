@@ -1160,16 +1160,12 @@ write_read_summary = function( read_summary, pathogenic_mutation, path_read_summ
             for(r in 1:length( read_summary$qnames[[i]] ) ){
                 rev_reads = rbind( rev_reads,
                                    cbind( sample_id,
-                                          dimnames(read_summary$summary[i,])[[1]],
                                           read_summary$summary[i,],
                                           read_summary$qnames[[i]][r] ) )
             }
         }
-        rev_reads = cbind( rev_reads, pathogenic_mutation=rep( encode_variants(pathogenic_mutation), dim(rev_reads)[1]) )
-        rev_reads = cbind( rev_reads, transcript_id=rep( transcript_id, dim(rev_reads)[1]) )
-        rev_reads = cbind( rev_reads, chrom=rep( pathogenic_mutation$chrom, dim(rev_reads)[1]) )
         dimnames(rev_reads)[[1]] = paste0( "read_", 1:dim( rev_reads )[1])
-        dimnames( rev_reads )[[2]] = c("sample","reversion", "N","evidence","pos","read_qname", "pathogenic_mutation", "transcript_id", "chrom")
+        dimnames( rev_reads )[[2]] = c("sample","N","reversion","evidence","pos","chrom", "transcript_id", "pathogenic_mutation", "read_qname")
         rev_reads = rev_reads[,c(1,9,8,7,2,3,4,5,6)]
         write.table( rev_reads, file = path_read_summary, sep='\t', row.names = FALSE, quote=FALSE)
     }else{
@@ -1193,10 +1189,6 @@ write_reversion_summary = function( read_summary, pathogenic_mutation, path_reve
         cat( "sample\tchrom\ttranscript_id\tpathogenic_mutation\treversion\tN\tevidence\tpos\n", file = path_reversion_summary)
     }else{
         rs$reversion = dimnames(rs)[[ 1 ]]
-        rs = cbind( rs, pathogenic_mutation=rep( encode_variants(pathogenic_mutation), dim(rs)[1]) )
-        rs = cbind( rs, transcript_id=rep( transcript_id, dim(rs)[1]) )
-        rs = cbind( rs, chrom=rep( pathogenic_mutation$chrom, dim(rs)[1]) )
-        rs = rs[,c(7,6,5,4,1,2,3) ]
         rs = cbind( sample=rep( sample_id, dim(rs)[1] ), rs)
         write.table( rs, file = path_reversion_summary, sep='\t', row.names = FALSE, quote=FALSE)
     }

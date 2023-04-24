@@ -139,8 +139,8 @@ if( dim(variants)[1] > 0 ){
 
         alignment_helper = aardvark::AlignmentWindow(Hsapiens_version,
                                                      opt$chrom,
-                                                     window_start = window_start,
-                                                     window_end = window_end)
+                                                     window_start = window_start - 5000,
+                                                     window_end = window_end + 5000 )
 
         ref_alt = aardvark::convert.VCF.REFALT.to.dash.format( opt$REF, opt$ALT )
         pathogenic_mutation = aardvark::Mutation(chrom = opt$chrom,
@@ -183,7 +183,7 @@ if( dim(variants)[1] > 0 ){
         }
         if( opt$verbose ){ cat( "MESSAGE: Completed read processing, writing output files\n" ) }
 
-        read_summary = aardvark::summarize_candidates( reads, transcript )
+        read_summary = aardvark::summarize_candidates( reads, transcript, pathogenic_mutation )
 
         ss = paste0( opt$sample_id, "_", opt$chrom, "_", opt$position )
         fn_out_Rdata = paste0( opt$dir_out, "/", ss, "_AARDVARK.RData")

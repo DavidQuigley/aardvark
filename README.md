@@ -14,7 +14,7 @@ AARDVARK was developed in the [Quigley lab](https://quigleylab.ucsf.edu) at UCSF
 AARDVARK is an R package and can be installed in the usual way from source:
 
 ```
-install.packages("aardvark_0.2.0.tar.gz", repos=NULL, type="source")
+install.packages("aardvark_0.2.5.tar.gz", repos=NULL, type="source")
 ```
 
 The AARDVARK package is dependent on the following R packages, all of which are available through 
@@ -22,8 +22,7 @@ CRAN or Bioconductor:
 
 GenomicRanges, VariantAnnotation, GenomicAlignments, Rsamtools, Biostrings, stringr, 
 IRanges, BSgenome.Hsapiens.UCSC.hg38, BSgenome.Hsapiens.UCSC.hg19, biomaRt, ensembldb, 
-testthat, EnsDb.Hsapiens.v86
-
+testthat, EnsDb.Hsapiens.v86, Gviz
 
 ## Quick Start: within R
 
@@ -34,8 +33,9 @@ testthat, EnsDb.Hsapiens.v86
 3) Define a read in that region to test
 4) Locally realign the read and predict whether that read creates a reversion
 
-In real use cases, all of the reads in a region are automatically read from a BAM file 
-and the pathogenic mutation can be read from a VCF file of candidate locations (see below). 
+In typical use cases, you define define one or more pathogenic mutations in a VCF 
+file and all sequencing reads in a window around that region are automatically read from a BAM file. 
+
 AARDVARK ships with command-line scripts that allow users to use AARDVARK without writing any R code.
 
 **Example**
@@ -64,8 +64,6 @@ AW = aardvark::AlignmentWindow( Hsapiens_version = BSgenome.Hsapiens.UCSC.hg38,
 # create a read object (can be automated with the read_from_BamData() function )
 # Realign the read and show that while the original read has a 72bp soft clip,
 # the corrected read has a large deletion flanked by two perfect matches.
-# Translation of the original read alignment predicts a first stop codon at p.1772
-# Translation of the realigned read predicts stop codon at p.3040, producing a reversion.
 # ------------------------------------------------------------------------------
 
 read_nt = "CAGCCTTAGCTTTTTACACAAGTTGTAGTAGAAAAACTTCTGTGAGTCAGACTTCATTACTTGAAGCAAAAAAAAGTTCCTTACACAAAGTTAAGGGAGTGTTAGAGGAATTTGATTTAATCAGAACTGAGCATAGTCTTCACTATTCACC"
@@ -79,14 +77,9 @@ read_original = aardvark::Read( qname="A00887:299:HWFYGDSXY:2:2674:25211:28682",
 print( read_original$cigar_ranges )
 read_realigned = aardvark::realign_read( read = read_original, 
                                          align_window = AW, 
-                                         gr_pathogenic = aardvark::genomicRangesFromMutation(GM) )
+                                         pathogenic_mutation = pathogenic_mut )
 
 print( read_realigned$cigar_ranges )
-aa = translate_cigar( transcript_BRCA2, read_original, pathogenic_mut, min_nt_qual=20 )
-print( which( strsplit(toString( aa ), "")[[1]] == "*" ) )
-
-aa = translate_cigar( transcript_BRCA2, read_realigned, pathogenic_mut, min_nt_qual=20 )
-print( which( strsplit(toString( aa ), "")[[1]] == "*" ) )
 
 # ------------------------------------------------------------------------------
 # Assess the predicted consequences of the realigned read and show the read
@@ -96,20 +89,21 @@ print( which( strsplit(toString( aa ), "")[[1]] == "*" ) )
 read_realigned = aardvark::assess_reversion(read = read_realigned,
                            transcript = aardvark::transcript_BRCA2,
                            pathogenic = pathogenic_mut,
-                           align_window = AW,
-                           gr_pathogenic =  aardvark::genomicRangesFromMutation(GM) )
+                           align_window = AW,  
+                           gr_pathogenic =  aardvark::genomicRangesFromMutation(pathogenic_mut) )
                                                     
                                                     
 read_summary = aardvark::summarize_candidates( list( read_realigned ), 
-                                               transcript=aardvark::transcript_BRCA2 )
+                                               transcript=aardvark::transcript_BRCA2,
+                                               pathogenic_mutation=pathogenic_mut)
 print( read_summary$summary )
 ```
 
 The read summary will be a data frame containing:
 
-alias|N|evidence|pos
---|--|--|--
-D:1137:32339427:32340563|1|reversion_read_deletion_spans_pathogenic_variant|32339427
+alias|N|reversion|evidence|pos|chrom|transcript_id|pathogenic_mutation
+--|--|--|--|--|--|--|--
+D:1137:32339427:32340563|1|D:1137:32339427:32340563|reversion_read_deletion_spans_pathogenic_variant|32339427|chr13|ENST00000380152|D:2:32339658:32339659
 
 ## Quick Start: command line
 
@@ -127,4 +121,26 @@ Rscript realign_BAM_region_from_VCF.R \
   --dir_out /path/to/output
 
 ```
+
+### Where to find the command line scripts
+
+The realign_BAM_region_from_VCF.R file can be found in the */exec* folder under wherever R installs aardvark. To find it on your installation, use the built-in *.libPaths()* function in R. 
+
+On my current build *.libPaths()* returns  
+*/Library/Frameworks/R.framework/Versions/4.2-arm64/Resources/library*  
+so on my installation the *realign_BAM_region_from_VCF.R* script is at  
+*/Library/Frameworks/R.framework/Versions/4.2-arm64/Resources/library/aardvark/exec/realign_BAM_region_from_VCF.R*
+
+```
+cd /data1/datasets_1/human_prostate_WCDT/dna_PARPi_reversion/processed/patient2
+Rscript /opt/R/4.1.2/lib/R/library/aardvark/exec/realign_BAM_region_from_VCF.R \
+  --sample_id test \
+  --fn_bam aardvark_example.bam \
+  --window_size 4000 \
+  --genome_draft 38 \
+  --proxy_http http://marlowe-proxy:3128 \
+  --proxy_https https://marlowe-proxy:3128 \
+  --fn_vcf aardvark_example.vcf \
+  --dir_out .
+ 
 

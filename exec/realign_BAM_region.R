@@ -128,7 +128,7 @@ for( ctr in 1:bb$N ){
 }
 if( opt$verbose ){ cat( "MESSAGE: Completed realignment, writing output files\n" ) }
 
-read_summary = aardvark::summarize_candidates( reads, transcript )
+read_summary = aardvark::summarize_candidates( reads, transcript, pathogenic_mutation = pathogenic_mutation )
 
 ss = paste0( opt$sample_id, "_", opt$chrom, "_", opt$position )
 fn_out_Rdata = paste0( opt$dir_out, "/", ss, "_AARDVARK.RData")
