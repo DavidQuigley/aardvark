@@ -219,8 +219,11 @@ realign_repeat_pathogenic_deletions = function( read,
                     germline_marked_not_deleted = ss$nt[ ss$pos == pos ] != "-"
                     adjacent_marked_deleted =     ss$nt[ ss$pos == (pos + mut_len) ] == "-"
                     germline_is_repeat = as.character( adjacent_3p[i] ) == mut_ref_vals[i]
-                    if( !( germline_marked_not_deleted & adjacent_marked_deleted & germline_is_repeat ) ){
-                        move_adjacent_on_3p = FALSE
+                    if( length( germline_marked_not_deleted)==1 &
+                        length( adjacent_marked_deleted == 1 ) ){
+                        if( !( germline_marked_not_deleted & adjacent_marked_deleted & germline_is_repeat ) ){
+                            move_adjacent_on_3p = FALSE
+                        }
                     }
                     pos = pos+1
                 }
@@ -247,8 +250,11 @@ realign_repeat_pathogenic_deletions = function( read,
                         germline_marked_not_deleted = ss$nt[ ss$pos == pos ] != "-"
                         adjacent_marked_deleted =     ss$nt[ ss$pos == (pos - mut_len) ] == "-"
                         germline_is_repeat = as.character( adjacent_5p[i] ) == mut_ref_vals[i]
-                        if( !( germline_marked_not_deleted & adjacent_marked_deleted & germline_is_repeat ) ){
-                            move_adjacent_on_5p = FALSE
+                        if( length( germline_marked_not_deleted)==1 &
+                            length( adjacent_marked_deleted == 1 ) ){
+                            if( !( germline_marked_not_deleted & adjacent_marked_deleted & germline_is_repeat ) ){
+                                move_adjacent_on_5p = FALSE
+                            }
                         }
                         pos = pos+1
                     }
