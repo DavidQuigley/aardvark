@@ -2,7 +2,7 @@
 
 **An Automated Reversion Detector for Variants Affecting Resistance Kinetics**
 
-<img src="https://quigleylab.ucsf.edu/sites/g/files/tkssra5646/f/wysiwyg/AARDVARK.jpg" style="height: 169px; width:362px;"><br />
+<img src="./inst/images/aardvark_logo.jpg" style="height: 169px; width:362px;"><br />
 
 AARDVARK is an R package that identifies reversion mutations in DNA sequence data. For 
 motivation, you could read our 2017 paper [Quigley et al. Cancer Discovery 2017](https://pubmed.ncbi.nlm.nih.gov/28450426/) where we demonstrated that a common form of PARP inhibitor resistance, called reversion mutations, can be detected in advanced prostate cancer by liquid biopsy.
@@ -127,10 +127,44 @@ Rscript realign_BAM_region_from_VCF.R \
 The realign_BAM_region_from_VCF.R file can be found in the */exec* folder under wherever R installs aardvark. To find it on your installation, use the built-in *.libPaths()* function in R. 
 
 On my current build *.libPaths()* returns  
-*/Library/Frameworks/R.framework/Versions/4.2-arm64/Resources/library*  
+*/opt/R/4.1.2/lib/R/library*  
 so on my installation the *realign_BAM_region_from_VCF.R* script is at  
-*/Library/Frameworks/R.framework/Versions/4.2-arm64/Resources/library/aardvark/exec/realign_BAM_region_from_VCF.R*
+*/opt/R/4.1.2/lib/R/library/aardvark/exec/realign_BAM_region_from_VCF.R*
 
-### Example data
+## Example data and reproducing results
 
 To try out AARDVARK on a real BAM file, you can [download a small segment of an indexed BAM file and paired VCF](https://doi.org/10.5281/zenodo.7860648) that is suitable for AARDVARK. Note that this BAM file only includes a tiny piece of sequence surrounding the pathogenic mutation on *BRCA2* and cannot be used to reconstruct anything else about the genome from this person.
+
+The following code will identify reversion mutations in this file. If you are running this locally, replace the value of DIR_EXAMPLE with a folder on your own computer and the value of DIR_LIBRARY with the location where aardvark was installed on your computer. See the above section (Where to find the command line scripts) to set the value for DIR_LIBRARY.
+
+```
+DIR_LIBRARY="/notebook/code"
+DIR_EXAMPLE="/notebook/human_prostate_AARDVARK/example"
+
+cd $DIR_EXAMPLE
+wget https://zenodo.org/record/7860648/files/aardvark_example.tar.gz
+tar -xzf aardvark_example.tar.gz 
+
+Rscript ${DIR_LIBRARY}/aardvark/exec/realign_BAM_region_from_VCF.R \
+   --sample_id example \
+   --fn_bam ${DIR_EXAMPLE}/aardvark_example.bam \
+   --fn_vcf ${DIR_EXAMPLE}/aardvark_example.vcf \
+   --window_size 4000 \
+   --genome_draft 38 \
+   --dir_out ${DIR_EXAMPLE}
+
+Rscript ${DIR_LIBRARY}/aardvark/exec/draw_reversion_summary.R \
+  --fn_summary ${DIR_EXAMPLE}/example_chr13_32331011_AARDVARK_reversion_summary_with_reads.txt  \
+  --genome_draft 38 \
+  --pos_start 32330950 \
+  --pos_end 32331087 \
+  --fig_height=6 \
+  --fig_width=10 \
+  --fn_out ${DIR_EXAMPLE}/aardvark_example.pdf
+ 
+```
+
+The call to *draw_reversion_summary.R* generates the following image:
+
+![AARDVARK example](./inst/images/aardvark_example.jpg "Example of AARDVARK output")
+

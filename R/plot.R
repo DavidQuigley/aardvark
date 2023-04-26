@@ -68,7 +68,7 @@ plot_reversion_summary = function( reversion_summary,
     ids = c()
     for(i in 1:length(reversions)){
         segs = strsplit( reversions[i], "_" )[[1]]
-        group_names = c( group_names, paste0("r",i, " ", reversion_summary$N[ which(dimnames(reversion_summary)[[1]]==reversions[i] )[1] ], "x" ) )
+        group_names = c( group_names, paste0("r",i, " ", reversion_summary$N[ which(reversion_summary$reversion==reversions[i] )[1] ], "x" ) )
         group_lengths = c(group_lengths, length(segs))
         for( j in 1:length( segs ) ){
             tokens = strsplit( segs[j], ":")[[1]]
