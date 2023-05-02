@@ -15,13 +15,13 @@
 #' @param text_size_adjustment adjustment to text size; larger values give larger text. Defaults 1
 #' @export
 plot_reversion_summary = function( reversion_summary,
-                                   genome_version=38,
-                                   hsapiens_object,
-                                   biomart_object,
-                                   pos_start, pos_end,
-                                   exclude_blacklist=TRUE,
-                                   min_freq=2,
-                                   text_size_adjustment=1){
+                                          genome_version=38,
+                                          hsapiens_object,
+                                          biomart_object,
+                                          pos_start, pos_end,
+                                          exclude_blacklist=TRUE,
+                                          min_freq=2,
+                                          text_size_adjustment=1){
     reversion_summary = reversion_summary[ reversion_summary$N >= min_freq, ]
     if( exclude_blacklist ){
         reversion_summary = reversion_summary[reversion_summary$evidence != "read_harbors_variant_in_excluded_region",]
@@ -41,11 +41,11 @@ plot_reversion_summary = function( reversion_summary,
     feature_types = c("pathogenic")
 
     biomTrack <- Gviz::BiomartGeneRegionTrack(genome = genome_version_names[1],
-                                        chromosome = chrom,
-                                        start = pos_start, end = pos_end,
-                                        filters=list("ensembl_transcript_id" = ensembl_transcript_id),
-                                        transcriptAnnotation = "symbol",
-                                        name = "exon", biomart = biomart_object)
+                                              chromosome = chrom,
+                                              start = pos_start, end = pos_end,
+                                              filters=list("ensembl_transcript_id" = ensembl_transcript_id),
+                                              transcriptAnnotation = "symbol",
+                                              name = "exon", biomart = biomart_object, group="exon")
 
     tokens = strsplit( reversion_summary$pathogenic_mutation[1], ":")[[1]]
     pos_start_pathogenic = as.numeric( tokens[3] )
@@ -56,11 +56,11 @@ plot_reversion_summary = function( reversion_summary,
         path_id = paste( tokens[1], tokens[2], collapse="", sep="")
     }
     path_track = Gviz::AnnotationTrack(start=pos_start_pathogenic, width=width_pathogenic,
-                                 chromosome=chrom, strand="+",
-                                 id=path_id,
-                                 genome=  genome_version_names[2],
-                                 name = "mut",
-                                 group="pathogenic mut.")
+                                       chromosome=chrom, strand="+",
+                                       id=path_id,
+                                       genome=  genome_version_names[2],
+                                       name = " ",
+                                       group="pathogenic mutation" )
     starts = c()
     widths = c()
     group_names = c()
@@ -68,12 +68,24 @@ plot_reversion_summary = function( reversion_summary,
     ids = c()
     for(i in 1:length(reversions)){
         segs = strsplit( reversions[i], "_" )[[1]]
-        group_names = c( group_names, paste0("r",i, " ", reversion_summary$N[ which(reversion_summary$reversion==reversions[i] )[1] ], "x" ) )
+        newslug = c()
+        for( token in segs ){
+            newslug = c(newslug, paste( strsplit( token, ":")[[1]][1:2], sep=":", collapse=":" ) )
+        }
+        if( length(newslug)==1 ){
+            slug_encoding = newslug[1]
+        }else{
+            slug_encoding = paste( newslug, collapse=" ")
+        }
+
+        n_appearances = reversion_summary$N[ which(reversion_summary$reversion==reversions[i] )[1] ]
+        group_names = c( group_names, paste0( n_appearances, "x ", slug_encoding) )
         group_lengths = c(group_lengths, length(segs))
         for( j in 1:length( segs ) ){
             tokens = strsplit( segs[j], ":")[[1]]
             widths = c( widths, as.numeric( tokens[2] )-1 )
             starts = c( starts, as.numeric( tokens[3] ) )
+
             if( tokens[1] == "D" ){
                 ids = c(ids, tokens[2] )
             }else{
@@ -83,31 +95,33 @@ plot_reversion_summary = function( reversion_summary,
     }
 
     aTrack <- Gviz::AnnotationTrack(start = starts, width = widths,
-                              chromosome = chrom,
-                              strand = rep("+", length(starts)),
-                              id=ids,
-                              group=rep(group_names, group_lengths ),
-                              genome = genome_version_names[2],
-                              name = "reversions")
+                                    chromosome = chrom,
+                                    strand = rep("+", length(starts)),
+                                    id=ids,
+                                    group = rep(group_names, group_lengths ),
+                                    genome = genome_version_names[2],
+                                    name = "reversions")
     Gviz::feature(aTrack) = "reversions"
     Gviz::feature(path_track) = "pathogenic"
     Gviz::feature(biomTrack) = "gene"
     display_properties = list(background.title = "white",
                               col.title = "black",
                               col.axis="black",
-                              cex=text_size_adjustment)
+                              fontsize=14)
     Gviz::displayPars(aTrack) <- display_properties
     Gviz::displayPars(biomTrack) = display_properties
     Gviz::displayPars(path_track) = display_properties
     gtrack = Gviz::GenomeAxisTrack()
 
     Gviz::plotTracks( list( strack, biomTrack, path_track, aTrack, gtrack ),
-                from=pos_start, to = pos_end,
-                shape = "box",
-                pathogenic="cornflowerblue", reversions="black", gene="lightgrey",
-                featureAnnotation = "id",
-                groupAnnotation = "group",
-                cex=text_size_adjustment, collapse=FALSE)
+                      from=pos_start, to = pos_end,
+                      shape = "box",
+                      pathogenic="cornflowerblue", reversions="black", gene="lightgrey",
+                      fontcolor.feature = "black",
+                      #featureAnnotation = "id",
+                      groupAnnotation = "group",
+                      cex.group = text_size_adjustment,
+                      cex=text_size_adjustment, collapse=FALSE, cex.main=1)
 }
 
 
