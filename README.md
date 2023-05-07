@@ -2,7 +2,7 @@
 
 **An Automated Reversion Detector for Variants Affecting Resistance Kinetics**
 
-<img src="./inst/images/aardvark_logo.jpg" style="height: 169px; width:362px;"><br />
+<img src="./inst/images/aardvark_logo.jpg" ><br />
 
 AARDVARK is an R package that identifies reversion mutations in DNA sequence data. For 
 motivation, you could read our 2017 paper [Quigley et al. Cancer Discovery 2017](https://pubmed.ncbi.nlm.nih.gov/28450426/) where we demonstrated that a common form of PARP inhibitor resistance, called reversion mutations, can be detected in advanced prostate cancer by liquid biopsy.
