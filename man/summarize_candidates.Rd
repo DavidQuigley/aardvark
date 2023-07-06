@@ -4,7 +4,12 @@
 \alias{summarize_candidates}
 \title{Report candidate reversions from a list of Reads}
 \usage{
-summarize_candidates(reads, transcript, pathogenic_mutation)
+summarize_candidates(
+  reads,
+  transcript,
+  pathogenic_mutation,
+  consolidate_ambiguous_alignments = TRUE
+)
 }
 \arguments{
 \item{reads}{A list of aardvark::Read objects}
@@ -12,6 +17,8 @@ summarize_candidates(reads, transcript, pathogenic_mutation)
 \item{transcript}{An aardvark::TranscriptData object describing the genomic region being analyzed}
 
 \item{pathogenic_mutation}{aardvark::Mutation object describing pathogenic mutation}
+
+\item{consolidate_ambiguous_alignments}{consolidate alleles that represent equally valid perfect alignments into a single representative allele}
 }
 \value{
 a list with the summary dataframe, cigar ranges for each allele, read names for each allee, and number of unreverted reads.
