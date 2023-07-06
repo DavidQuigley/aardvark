@@ -608,15 +608,22 @@ locally_realign_read = function( read,
                 read = vec_read,
                 ref = vec_ref,
                 qual = rep(0, length(vec_read)), stringsAsFactors = FALSE )
-            rr_combined$qual[ which( rr_combined$read != "-" ) ] = rr_realign$qual
-            # low-quality nucleotides that are called inserts rewritten as a mismatch
-            # to avoid preserving insert when we call rebuild_read_from_realignment()
-            idx_lowqual_inserts = which( rr_combined$read != "-" & rr_combined$ref=="-" & rr_combined$qual < min_nt_qual)
-            if( length( idx_lowqual_inserts>0 )){
-                for(i in 1:length( idx_lowqual_inserts )){
-                    rr_combined$ref[ idx_lowqual_inserts[i] ] = AW_get_nucleotide(align_window,
-                                                                                  rr_combined$pos[ idx_lowqual_inserts[i]] )
+            if( length( which( rr_combined$read != "-" ) ) == length( rr_realign$qual)){
+                rr_combined$qual[ which( rr_combined$read != "-" ) ] = rr_realign$qual
+                # low-quality nucleotides that are called inserts rewritten as a mismatch
+                # to avoid preserving insert when we call rebuild_read_from_realignment()
+                idx_lowqual_inserts = which( rr_combined$read != "-" & rr_combined$ref=="-" & rr_combined$qual < min_nt_qual)
+                if( length( idx_lowqual_inserts>0 )){
+                    for(i in 1:length( idx_lowqual_inserts )){
+                        rr_combined$ref[ idx_lowqual_inserts[i] ] = AW_get_nucleotide(align_window,
+                                                                                      rr_combined$pos[ idx_lowqual_inserts[i]] )
+                    }
                 }
+            }else{
+                # there's an edge case where additional deletions are placed in the newly aligned read, and we can't
+                # be sure where to reassign the quality scores. This workaround is not ideal but it prevents a warning
+                # that can otherwise sink us
+                rr_combined$qual[ which( rr_combined$read != "-" ) ] = median(rr_realign$qual)
             }
             n_new_inserts = sum( rr_combined$read != "-" & rr_combined$ref=="-" & rr_combined$qual >= min_nt_qual)
 
