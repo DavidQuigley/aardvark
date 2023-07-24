@@ -307,7 +307,7 @@ realign_read = function( read,
                          min_nt_qual = 20){
 
     if( is.null( gr_pathogenic ) ){
-        gr_pathogenic_mut = aardvark::genomicRangesFromMutation(pathogenic_mutation)
+        gr_pathogenic = aardvark::genomicRangesFromMutation(pathogenic_mutation)
     }
     if( read$pos < align_window$start | read$pos > align_window$end ){
         stop( paste( "read position", read$pos, "out of bounds for alignment window ranging", align_window$start,"to",align_window$end ) )
