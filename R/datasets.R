@@ -1,3 +1,12 @@
+#' Example read data ERR2851475
+#'
+#' @docType data
+#' @keywords ERR2851475
+#' @name ERR2851475
+#' @usage data(ERR2851475)
+#' @format a list of BAM data elements
+NULL
+
 #' Transcript data for BRCA1
 #'
 #' @docType data
