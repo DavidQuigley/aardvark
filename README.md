@@ -9,6 +9,11 @@ motivation, you could read our 2017 paper [Quigley et al. Cancer Discovery 2017]
 
 AARDVARK was developed in the [Quigley lab](https://quigleylab.ucsf.edu) at UCSF.
 
+## Citing AARDVARK
+
+The AARDVARK manuscript [Moreno et al. Bioinformatics 2023](https://pubmed.ncbi.nlm.nih.gov/37584701) 
+is now published. If you find AARDVARK helpful in your work, please cite our paper.
+
 ## Installation and dependencies
 
 AARDVARK is an R package and can be installed in the usual way from source:
