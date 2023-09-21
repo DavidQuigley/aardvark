@@ -57,6 +57,36 @@ hsh_set = function( H, key, value ){
 }
 
 
+#' split vector all at once
+#'
+#' @param v vector
+#' @param string, split value
+#' @param col column to return
+#' @param last return last
+#' @param first return first
+get.split.col = function(v, string, col=0, last=F, first=F){
+    if( last & first )
+        stop("Cannot request both last and first column")
+    if( col==0 & !last & !first)
+        stop("Must request either a column by index, first, or last")
+
+    for(i in 1:length(v)){
+        x = strsplit( v[i], string, fixed=T)[[1]]
+        if(last){
+            v[i] = x[length(x)]
+        }
+        else if(first){
+            v[i] = x[1]
+        }
+        else{
+            v[i] = x[col]
+        }
+    }
+    v
+}
+
+
+
 #' return indices into A and B restricted to perfect matches where idx.A == idx.B for each i in matched pairs
 #'
 #' @param A vector

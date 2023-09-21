@@ -3,7 +3,7 @@
 \docType{data}
 \name{transcript_ATM}
 \alias{transcript_ATM}
-\title{Transcript data for ATM}
+\title{Transcript data for ATM, HG38}
 \format{
 a TranscriptData object
 }
@@ -11,6 +11,6 @@ a TranscriptData object
 data(transcript_ATM)
 }
 \description{
-Transcript data for ATM
+Transcript data for ATM, HG38
 }
 \keyword{ATM}

@@ -1168,61 +1168,63 @@ consolidate_ambiguous_candidates = function( df_sum, transcript ){
     # #1  TA--------TAG
     # #2  TAT--------AGC
     reversions = dimnames(df_sum)[[1]]
-    is_single_del = rep(FALSE, length(reversions))
-    del_length = rep(0, length(reversions))
-    del_start = rep(0, length(reversions))
-    del_end = rep(0, length(reversions))
-    for(i in 1:dim(df_sum)[1]){
-        tokens = strsplit(reversions[i], "_")[[1]]
-        if( length(tokens)==1 ){
-            a = strsplit( tokens[1], ":")[[1]]
-            is_single_del[i] = a[1]=="D"
-            if( is_single_del[i] ){
-                del_length[i] = as.numeric( a[2] )
-                del_start[i] = as.numeric( a[3] )
-                del_end[i] = as.numeric( a[4] )
+    if( length(reversions)>0 ){
+        is_single_del = rep(FALSE, length(reversions))
+        del_length = rep(0, length(reversions))
+        del_start = rep(0, length(reversions))
+        del_end = rep(0, length(reversions))
+        for(i in 1:dim(df_sum)[1]){
+            tokens = strsplit(reversions[i], "_")[[1]]
+            if( length(tokens)==1 ){
+                a = strsplit( tokens[1], ":")[[1]]
+                is_single_del[i] = a[1]=="D"
+                if( is_single_del[i] ){
+                    del_length[i] = as.numeric( a[2] )
+                    del_start[i] = as.numeric( a[3] )
+                    del_end[i] = as.numeric( a[4] )
+                }
             }
         }
-    }
-    candidates = data.frame( is_single_del, del_length, del_start, del_end,
-                             keep = rep(TRUE, length(is_single_del)),
-                             N = df_sum$N,
-                             row.names = reversions )
-    for( i in 1:dim(candidates)[1]){
-        idx_match = which( candidates$keep & candidates$is_single_del & candidates$del_length==candidates$del_length[i])
-        if( length(idx_match)>1 ){
-            del_start_1 = candidates$del_start[ idx_match[1] ]
-            del_start_2 = candidates$del_start[ idx_match[2] ]
-            del_end_1 = candidates$del_end[ idx_match[1] ]
-            del_end_2 = candidates$del_end[ idx_match[2] ]
-            offset = abs( del_start_1 - del_start_2 )
+        candidates = data.frame( is_single_del, del_length, del_start, del_end,
+                                 keep = rep(TRUE, length(is_single_del)),
+                                 N = df_sum$N,
+                                 row.names = reversions )
+        for( i in 1:dim(candidates)[1]){
+            idx_match = which( candidates$keep & candidates$is_single_del & candidates$del_length==candidates$del_length[i])
+            if( length(idx_match)>1 ){
+                del_start_1 = candidates$del_start[ idx_match[1] ]
+                del_start_2 = candidates$del_start[ idx_match[2] ]
+                del_end_1 = candidates$del_end[ idx_match[1] ]
+                del_end_2 = candidates$del_end[ idx_match[2] ]
+                offset = abs( del_start_1 - del_start_2 )
 
-            if( length( offset) < candidates$del_length[i] ){
-                deleted_1 = transcript$nucleotides$seq[ transcript$nucleotides$pos>=del_start_1 & transcript$nucleotides$pos<=del_end_1 ]
-                deleted_2 = transcript$nucleotides$seq[ transcript$nucleotides$pos>=del_start_2 & transcript$nucleotides$pos<=del_end_2 ]
-                idx_shifted = 1:length(deleted_2)
-                idx_shifted = c( idx_shifted, idx_shifted[ 1:offset ]  )
-                idx_shifted = idx_shifted[ (offset+1) : length(idx_shifted)]
-                if( identical( deleted_1, deleted_2[idx_shifted] ) ){
-                    # drop first reversion, shift sum of observations to second
-                    candidates$keep[idx_match[ 1 ] ] = FALSE
-                    candidates$N[ idx_match[ 2 ] ] = candidates$N[ idx_match[ 1 ] ] + candidates$N[ idx_match[ 2 ] ]
-                }else{
-                    # try shifting in the other direction
-                    idx_shifted = 1:length(deleted_1)
-                    idx_shifted = c( idx_shifted[ (length(idx_shifted) + 1 - offset) : length(idx_shifted) ], idx_shifted  )
-                    idx_shifted = idx_shifted[ 1 : length(deleted_1) ]
+                if( length( offset) < candidates$del_length[i] ){
+                    deleted_1 = transcript$nucleotides$seq[ transcript$nucleotides$pos>=del_start_1 & transcript$nucleotides$pos<=del_end_1 ]
+                    deleted_2 = transcript$nucleotides$seq[ transcript$nucleotides$pos>=del_start_2 & transcript$nucleotides$pos<=del_end_2 ]
+                    idx_shifted = 1:length(deleted_2)
+                    idx_shifted = c( idx_shifted, idx_shifted[ 1:offset ]  )
+                    idx_shifted = idx_shifted[ (offset+1) : length(idx_shifted)]
                     if( identical( deleted_1, deleted_2[idx_shifted] ) ){
                         # drop first reversion, shift sum of observations to second
-                        candidates$keep[ idx_match[ 1 ] ] = FALSE
+                        candidates$keep[idx_match[ 1 ] ] = FALSE
                         candidates$N[ idx_match[ 2 ] ] = candidates$N[ idx_match[ 1 ] ] + candidates$N[ idx_match[ 2 ] ]
+                    }else{
+                        # try shifting in the other direction
+                        idx_shifted = 1:length(deleted_1)
+                        idx_shifted = c( idx_shifted[ (length(idx_shifted) + 1 - offset) : length(idx_shifted) ], idx_shifted  )
+                        idx_shifted = idx_shifted[ 1 : length(deleted_1) ]
+                        if( identical( deleted_1, deleted_2[idx_shifted] ) ){
+                            # drop first reversion, shift sum of observations to second
+                            candidates$keep[ idx_match[ 1 ] ] = FALSE
+                            candidates$N[ idx_match[ 2 ] ] = candidates$N[ idx_match[ 1 ] ] + candidates$N[ idx_match[ 2 ] ]
+                        }
                     }
                 }
             }
         }
+        df_sum$N = candidates$N
+        df_sum = df_sum[candidates$keep,]
     }
-    df_sum$N = candidates$N
-    df_sum = df_sum[candidates$keep,]
     df_sum
 }
 

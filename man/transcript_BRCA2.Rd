@@ -3,7 +3,7 @@
 \docType{data}
 \name{transcript_BRCA2}
 \alias{transcript_BRCA2}
-\title{Transcript data for BRCA2}
+\title{Transcript data for BRCA2, HG38}
 \format{
 a TranscriptData object
 }
@@ -11,6 +11,6 @@ a TranscriptData object
 data(transcript_BRCA2)
 }
 \description{
-Transcript data for BRCA2
+Transcript data for BRCA2, HG38
 }
 \keyword{BRCA2}

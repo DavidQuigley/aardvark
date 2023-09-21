@@ -15,7 +15,12 @@
 #' @returns A list with elements start, end, seq, vec. seq is a Biostrings object;
 #' @export
 AlignmentWindow = function( Hsapiens_version, chrom, window_start, window_end, min_length_for_homopolymer=5 ){
-    seq = Biostrings::getSeq( Hsapiens_version, chrom, start = window_start, end = window_end)
+
+    chrom_ucsc = chrom
+    if( length( grep("chr", chrom))==0 ){
+        chrom_ucsc = paste0("chr", chrom)
+    }
+    seq = Biostrings::getSeq( Hsapiens_version, chrom_ucsc, start = window_start, end = window_end)
 
     r = rle( strsplit( as.character(seq), "" )[[1]] )
     idx_hom = which( r$lengths>= min_length_for_homopolymer)

@@ -75,7 +75,14 @@ suppressPackageStartupMessages( require( aardvark, quietly=TRUE, warn.conflicts=
 if( opt$verbose ){  cat( paste0( "MESSAGE: Loading Ensembl data and fetching transcript ",
                                    opt$transcript_id, "\n" ) ) }
 
-ensembl = useDataset("hsapiens_gene_ensembl", mart = useMart("ensembl") )
+if( opt$genome_draft== 38 ){
+    ensembl = biomaRt::useDataset("hsapiens_gene_ensembl", mart = biomaRt::useMart("ensembl") )
+}else{
+    ensembl <-useMart(biomart="ENSEMBL_MART_ENSEMBL",
+                      host="https://grch37.ensembl.org",
+                      path="/biomart/martservice", dataset="hsapiens_gene_ensembl")
+}
+
 transcript = aardvark::TranscriptData( ensembl, EnsDb.Hsapiens.v86, opt$transcript_id )
 if( opt$genome_draft == 38 ){
     Hsapiens_version = BSgenome.Hsapiens.UCSC.hg38

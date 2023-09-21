@@ -7,7 +7,7 @@
 #' @format a list of BAM data elements
 NULL
 
-#' Transcript data for BRCA1
+#' Transcript data for BRCA1, HG38
 #'
 #' @docType data
 #' @keywords BRCA1
@@ -16,7 +16,7 @@ NULL
 #' @format a TranscriptData object
 NULL
 
-#' Transcript data for BRCA2
+#' Transcript data for BRCA2, HG38
 #'
 #' @docType data
 #' @keywords BRCA2
@@ -25,7 +25,7 @@ NULL
 #' @format a TranscriptData object
 NULL
 
-#' Transcript data for ATM
+#' Transcript data for ATM, HG38
 #'
 #' @docType data
 #' @keywords ATM
@@ -62,6 +62,16 @@ NULL
 NULL
 
 #' List of cached biomaRt::getSequence results
+#' Note there is no MANE data for the hg19 build
+#'
+#' @docType data
+#' @keywords ensembl
+#' @name hg19_ensembl_coding_transcripts
+#' @usage data(hg19_ensembl_coding_transcripts)
+#' @format a list of biomaRt::getSequence results
+NULL
+
+#' List of cached biomaRt::getSequence results
 #'
 #' @docType data
 #' @keywords ensembl
@@ -69,3 +79,4 @@ NULL
 #' @usage data(hg38_ensembl_coding_transcripts)
 #' @format a list of biomaRt::getSequence results
 NULL
+

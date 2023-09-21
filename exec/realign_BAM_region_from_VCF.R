@@ -59,13 +59,15 @@ suppressPackageStartupMessages( require( GenomicAlignments, quietly=TRUE, warn.c
 suppressPackageStartupMessages( require( Rsamtools, quietly=TRUE, warn.conflicts=FALSE ) )
 suppressPackageStartupMessages( require( Biostrings, quietly=TRUE, warn.conflicts=FALSE ) )
 suppressPackageStartupMessages( require( stringr, quietly=TRUE, warn.conflicts=FALSE ) )
-suppressPackageStartupMessages( require( BSgenome.Hsapiens.UCSC.hg38, quietly=TRUE, warn.conflicts=FALSE ) )
-suppressPackageStartupMessages( require( BSgenome.Hsapiens.UCSC.hg19, quietly=TRUE, warn.conflicts=FALSE ) )
 suppressPackageStartupMessages( require( biomaRt, quietly=TRUE, warn.conflicts=FALSE ) )
 suppressPackageStartupMessages( require( ensembldb, quietly=TRUE, warn.conflicts=FALSE ) )
 suppressPackageStartupMessages( require( EnsDb.Hsapiens.v86, quietly=TRUE, warn.conflicts=FALSE ) )
 suppressPackageStartupMessages( require( aardvark, quietly=TRUE, warn.conflicts=FALSE ) )
-
+if( opt$genome_draft == 38 ){
+    suppressPackageStartupMessages( require( BSgenome.Hsapiens.UCSC.hg38, quietly=TRUE, warn.conflicts=FALSE ) )
+}else{
+    suppressPackageStartupMessages( require( BSgenome.Hsapiens.UCSC.hg19, quietly=TRUE, warn.conflicts=FALSE ) )
+}
 VCF = suppressWarnings( VariantAnnotation::readVcf( opt$fn_vcf ) )
 variants = data.frame( rowRanges( VCF ) )
 if( dim(variants)[1]==0 ){
@@ -100,11 +102,7 @@ if( dim(variants)[1] > 0 ){
     for(i in 1:dim(variants)[1]){
 
         ts_start = Sys.time()
-        opt$chrom=as.character(variants$seqnames[i])
-        if( length( grep( "chr", opt$chrom, value = FALSE ) )==0 ){
-            opt$chrom = paste0( "chr", chrom )
-        }
-
+        opt$chrom = as.character(variants$seqnames[i])
         opt$position = variants$start[i]
         opt$pos_end = variants$end[i]
         opt$REF = as.character(variants$REF[i][[1]])
@@ -116,118 +114,136 @@ if( dim(variants)[1] > 0 ){
             stop( paste0( "invalid parameter(s) for input: Reference and Alternate sequence cannot be identical." ) )
         }
         if( opt$verbose ){  cat( paste0( "MESSAGE: Identifying transcript for ", opt$chrom, ":", opt$position, "\n" ) ) }
-        gr_var = GenomicRanges::makeGRangesFromDataFrame( data.frame( seqnames=opt$chrom, start=opt$position, end=opt$position+1) )
+
+        chr_for_transcript = opt$chrom
+        chrom_contains_chr_string = length( grep( "chr", opt$chrom, value = FALSE ) ) > 0
+        if( !chrom_contains_chr_string ){
+            chr_for_transcript = paste0( "chr", chr_for_transcript )
+        }
+        gr_var = GenomicRanges::makeGRangesFromDataFrame( data.frame( seqnames=chr_for_transcript, start=opt$position, end=opt$position+1) )
         idx = subjectHits( GenomicRanges::findOverlaps( gr_var, gr_ensembl_transcripts ) )
-        opt$transcript_id = ensembl_coding_transcripts$transcript_id[ idx ]
-        if( opt$verbose ){  cat( paste0( "MESSAGE: Using transcript ", opt$transcript_id, "\n" ) ) }
-
-        if( opt$genome_draft == 38 & opt$transcript_id %in% names( transcript_cache_hg38 ) ){
-            transcript = transcript_cache_hg38[[ opt$transcript_id ]]
+        if( length(idx) == 0 ){
+            if( opt$verbose ){  cat( paste0( "MESSAGE: Did not find transcript corresponding to genome location ", opt$chrom, ":", opt$position, "\n" ) ) }
         }else{
-            if( ! exists("ensembl") ){
-                ensembl = biomaRt::useDataset("hsapiens_gene_ensembl", mart = biomaRt::useMart("ensembl") )
+            if( length(idx) > 1 ){
+                if(opt$verbose){ paste0( "MESSAGE: multiple matches for transcript, using first match.") }
+                idx = idx[1]
             }
-            transcript = aardvark::TranscriptData( ensembl, EnsDb.Hsapiens.v86, opt$transcript_id )
+            opt$transcript_id = ensembl_coding_transcripts$transcript_id[ idx ]
+            if( opt$verbose ){  cat( paste0( "MESSAGE: Using transcript ", opt$transcript_id, ' in symbol ', ensembl_coding_transcripts$symbol[ idx] , "\n" ) ) }
+            if( opt$genome_draft == 38 & opt$transcript_id %in% names( transcript_cache_hg38 ) ){
+                transcript = transcript_cache_hg38[[ opt$transcript_id ]]
+            }else{
+                if( ! exists("ensembl") ){
+                    if( opt$genome_draft== 38 ){
+                        ensembl = biomaRt::useDataset("hsapiens_gene_ensembl", mart = biomaRt::useMart("ensembl") )
+                    }else{
+                        ensembl <-useMart(biomart="ENSEMBL_MART_ENSEMBL",
+                                          host="https://grch37.ensembl.org",
+                                          path="/biomart/martservice", dataset="hsapiens_gene_ensembl")
+                    }
+                }
+                transcript = aardvark::TranscriptData( ensembl, EnsDb.Hsapiens.v86, opt$transcript_id )
+            }
+            # alignment window has to be larger than window because realignment can push
+            # reads outside of their originally aligned locations
+            window_start = opt$position - round(opt$window_size)
+            window_end =  opt$position + round(opt$window_size)
+            bam_start = opt$position - round(opt$window_size/2)
+            bam_end =  opt$position + round(opt$window_size/2)
+
+            alignment_helper = aardvark::AlignmentWindow(Hsapiens_version,
+                                                         opt$chrom,
+                                                         window_start = window_start - 5000,
+                                                         window_end = window_end + 5000 )
+
+            ref_alt = aardvark::convert.VCF.REFALT.to.dash.format( opt$REF, opt$ALT )
+            pathogenic_mutation = aardvark::Mutation(chrom = opt$chrom,
+                                                     pos = opt$position,
+                                                     seq_ref = ref_alt$REF,
+                                                     seq_alt = ref_alt$ALT,
+                                                     transcript = transcript)
+
+            if( opt$verbose ){  cat( paste0( "MESSAGE: Reading BAM ", opt$fn_bam, '\n' ) ) }
+            if( opt$verbose ){  cat( paste0( "MESSAGE: Loading reads in range ",
+                                             opt$chrom, ":", bam_start, "-", bam_end, "\n" ) ) }
+
+            bb = aardvark::BamData( fn_bam = opt$fn_bam,
+                                    chrom = opt$chrom,
+                                    start = bam_start,
+                                    end = bam_end)
+            reads = vector( mode = "list", length = bb$N )
+            gr_pathogenic = genomicRangesFromMutation( pathogenic_mutation )
+
+            if( opt$verbose ){ cat( paste("MESSAGE: Processing", bb$N, "reads\n") ) }
+            for( ctr in 1:bb$N ){
+                if( opt$verbose & ctr %% 100 == 0 ){ cat( paste( "MESSAGE: Processed read", ctr, "of", bb$N, "\n" ) ) }
+                read = aardvark::read_from_BamData( bb, ctr )
+                read = aardvark::realign_read( read,
+                                               alignment_helper,
+                                               pathogenic_mutation = pathogenic_mutation,
+                                               gr_pathogenic = gr_pathogenic,
+                                               allow_insertions_in_realign = opt$allow_insertions_in_realign,
+                                               min_nt_for_distant_realign = opt$min_nt_for_distant_realign,
+                                               min_percent_realigned = opt$min_percent_realigned,
+                                               near_bound = opt$near_bound,
+                                               min_nt_qual = opt$min_nt_qual)
+
+                reads[[ ctr ]] = aardvark::assess_reversion(read,
+                                                            transcript,
+                                                            pathogenic = pathogenic_mutation,
+                                                            align_window = alignment_helper,
+                                                            min_nt_qual = opt$min_nt_qual,
+                                                            gr_pathogenic = gr_pathogenic,
+                                                            gr_exclude = alignment_helper$homopolymer_regions)
+            }
+            if( opt$verbose ){ cat( "MESSAGE: Completed read processing, writing output files\n" ) }
+
+            read_summary = aardvark::summarize_candidates( reads, transcript, pathogenic_mutation )
+
+            ss = paste0( opt$sample_id, "_", opt$chrom, "_", opt$position )
+            fn_out_Rdata = paste0( opt$dir_out, "/", ss, "_AARDVARK.RData")
+            fn_out_reads = paste0( opt$dir_out, "/", ss, "_AARDVARK_reversion_summary_with_reads.txt")
+            fn_out_settings = paste0( opt$dir_out, "/", ss, "_AARDVARK_run_settings.txt")
+
+            aardvark::write_read_summary( read_summary, pathogenic_mutation, fn_out_reads, opt$sample_id, opt$transcript_id )
+            if( opt$verbose ){ cat( paste("MESSAGE: Saved output reversion summary file with reads:", fn_out_reads, "\n") ) }
+
+            # Write out the parameters used to generate these results
+            df_param = data.frame( param=c(), value=c(), stringsAsFactors = FALSE )
+            df_param = rbind( df_param, c( "time_start", format( ts_start, "%F %T" ) ) )
+            df_param = rbind( df_param, c( "time_end", format( Sys.time(), "%F %T" ) ) )
+            df_param = rbind( df_param, c( "aardvark_version", as.character(packageVersion( "aardvark" ) ) ) )
+            df_param = rbind( df_param, c( "sample_id", opt$sample_id ) )
+            df_param = rbind( df_param, c( "input_bam", opt$fn_bam ) )
+            df_param = rbind( df_param, c( "output_dir", opt$dir_out ) )
+            df_param = rbind( df_param, c( "transcript_identifier", opt$transcript_id ) )
+            df_param = rbind( df_param, c( "chromosome", opt$chrom ) )
+            df_param = rbind( df_param, c( "variant_position", opt$position ) )
+            df_param = rbind( df_param, c( "variant_REF", opt$REF ) )
+            df_param = rbind( df_param, c( "variant_ALT", opt$ALT ) )
+            df_param = rbind( df_param, c( "window_size", opt$window_size ) )
+            df_param = rbind( df_param, c( "near_bound", opt$near_bound ) )
+            df_param = rbind( df_param, c( "allow_insertions_in_realign", opt$allow_insertions_in_realign )  )
+            df_param = rbind( df_param, c( "min_nt_for_distant_realign", opt$min_nt_for_distant_realign ) )
+            df_param = rbind( df_param, c( "min_percent_realigned", opt$min_percent_realigned ) )
+            df_param = rbind( df_param, c( "min_nt_qual", opt$min_nt_qual ) )
+            df_param = rbind( df_param, c( "human_genome_draft", opt$genome_draft ) )
+            df_param = rbind( df_param, c( "n_reads_unreverted", read_summary$n_unreverted ) )
+            df_param = rbind( df_param, c( "n_reads_uninformative", read_summary$n_uninformative ) )
+            df_param = rbind( df_param, c( "n_reads_considered", bb$N ) )
+            df_param = rbind( df_param, c( "n_reads_excluded", read_summary$n_excluded ) )
+            dimnames(df_param)[[2]] = c("parameter", "value" )
+            write.table( df_param, file = fn_out_settings, sep='\t', row.names = FALSE, quote = FALSE )
+            if( opt$verbose ){ cat( paste("MESSAGE: Saved run settings", fn_out_settings,"\n" ) ) }
+
+            # Write out the AARDVARK data for optional further analysis
+            if( opt$write_rdata ){
+                if( opt$verbose ){ cat( paste("MESSAGE: Writing AARDVARK R objects in Rdata file", fn_out_Rdata, "\n" ) ) }
+                save( reads, read_summary, file = fn_out_Rdata )
+                if( opt$verbose ){ cat( paste("MESSAGE: Saved AARDVARK R object file\n" ) ) }
+            }
         }
-
-        # alignment window has to be larger than window because realignment can push
-        # reads outside of their originally aligned locations
-        window_start = opt$position - round(opt$window_size)
-        window_end =  opt$position + round(opt$window_size)
-        bam_start = opt$position - round(opt$window_size/2)
-        bam_end =  opt$position + round(opt$window_size/2)
-
-        alignment_helper = aardvark::AlignmentWindow(Hsapiens_version,
-                                                     opt$chrom,
-                                                     window_start = window_start - 5000,
-                                                     window_end = window_end + 5000 )
-
-        ref_alt = aardvark::convert.VCF.REFALT.to.dash.format( opt$REF, opt$ALT )
-        pathogenic_mutation = aardvark::Mutation(chrom = opt$chrom,
-                                                 pos = opt$position,
-                                                 seq_ref = ref_alt$REF,
-                                                 seq_alt = ref_alt$ALT,
-                                                 transcript = transcript)
-
-        if( opt$verbose ){  cat( paste0( "MESSAGE: Reading BAM ", opt$fn_bam, '\n' ) ) }
-        if( opt$verbose ){  cat( paste0( "MESSAGE: Loading reads in range ",
-                                         opt$chrom, ":", bam_start, "-", bam_end, "\n" ) ) }
-
-        bb = aardvark::BamData( fn_bam = opt$fn_bam,
-                                chrom = opt$chrom,
-                                start = bam_start,
-                                end = bam_end)
-        reads = vector( mode = "list", length = bb$N )
-        gr_pathogenic = genomicRangesFromMutation( pathogenic_mutation )
-
-        if( opt$verbose ){ cat( paste("MESSAGE: Processing", bb$N, "reads\n") ) }
-        for( ctr in 1:bb$N ){
-            if( opt$verbose & ctr %% 100 == 0 ){ cat( paste( "MESSAGE: Processed read", ctr, "of", bb$N, "\n" ) ) }
-            read = aardvark::read_from_BamData( bb, ctr )
-            read = aardvark::realign_read( read,
-                                           alignment_helper,
-                                           pathogenic_mutation = pathogenic_mutation,
-                                           gr_pathogenic = gr_pathogenic,
-                                           allow_insertions_in_realign = opt$allow_insertions_in_realign,
-                                           min_nt_for_distant_realign = opt$min_nt_for_distant_realign,
-                                           min_percent_realigned = opt$min_percent_realigned,
-                                           near_bound = opt$near_bound,
-                                           min_nt_qual = opt$min_nt_qual)
-            reads[[ ctr ]] = aardvark::assess_reversion(read,
-                                                        transcript,
-                                                        pathogenic = pathogenic_mutation,
-                                                        align_window = alignment_helper,
-                                                        min_nt_qual = opt$min_nt_qual,
-                                                        gr_pathogenic = gr_pathogenic,
-                                                        gr_exclude = alignment_helper$homopolymer_regions)
-        }
-        if( opt$verbose ){ cat( "MESSAGE: Completed read processing, writing output files\n" ) }
-
-        read_summary = aardvark::summarize_candidates( reads, transcript, pathogenic_mutation )
-
-        ss = paste0( opt$sample_id, "_", opt$chrom, "_", opt$position )
-        fn_out_Rdata = paste0( opt$dir_out, "/", ss, "_AARDVARK.RData")
-        fn_out_reads = paste0( opt$dir_out, "/", ss, "_AARDVARK_reversion_summary_with_reads.txt")
-        fn_out_settings = paste0( opt$dir_out, "/", ss, "_AARDVARK_run_settings.txt")
-
-        aardvark::write_read_summary( read_summary, pathogenic_mutation, fn_out_reads, opt$sample_id, opt$transcript_id )
-        if( opt$verbose ){ cat( paste("MESSAGE: Saved output reversion summary file with reads:", fn_out_reads, "\n") ) }
-
-        # Write out the parameters used to generate these results
-        df_param = data.frame( param=c(), value=c(), stringsAsFactors = FALSE )
-        df_param = rbind( df_param, c( "time_start", format( ts_start, "%F %T" ) ) )
-        df_param = rbind( df_param, c( "time_end", format( Sys.time(), "%F %T" ) ) )
-        df_param = rbind( df_param, c( "aardvark_version", as.character(packageVersion( "aardvark" ) ) ) )
-        df_param = rbind( df_param, c( "sample_id", opt$sample_id ) )
-        df_param = rbind( df_param, c( "input_bam", opt$fn_bam ) )
-        df_param = rbind( df_param, c( "output_dir", opt$dir_out ) )
-        df_param = rbind( df_param, c( "transcript_identifier", opt$transcript_id ) )
-        df_param = rbind( df_param, c( "chromosome", opt$chrom ) )
-        df_param = rbind( df_param, c( "variant_position", opt$position ) )
-        df_param = rbind( df_param, c( "variant_REF", opt$REF ) )
-        df_param = rbind( df_param, c( "variant_ALT", opt$ALT ) )
-        df_param = rbind( df_param, c( "window_size", opt$window_size ) )
-        df_param = rbind( df_param, c( "near_bound", opt$near_bound ) )
-        df_param = rbind( df_param, c( "allow_insertions_in_realign", opt$allow_insertions_in_realign )  )
-        df_param = rbind( df_param, c( "min_nt_for_distant_realign", opt$min_nt_for_distant_realign ) )
-        df_param = rbind( df_param, c( "min_percent_realigned", opt$min_percent_realigned ) )
-        df_param = rbind( df_param, c( "min_nt_qual", opt$min_nt_qual ) )
-        df_param = rbind( df_param, c( "human_genome_draft", opt$genome_draft ) )
-        df_param = rbind( df_param, c( "n_reads_unreverted", read_summary$n_unreverted ) )
-        df_param = rbind( df_param, c( "n_reads_uninformative", read_summary$n_uninformative ) )
-        df_param = rbind( df_param, c( "n_reads_considered", bb$N ) )
-        df_param = rbind( df_param, c( "n_reads_excluded", read_summary$n_excluded ) )
-        dimnames(df_param)[[2]] = c("parameter", "value" )
-        write.table( df_param, file = fn_out_settings, sep='\t', row.names = FALSE, quote = FALSE )
-        if( opt$verbose ){ cat( paste("MESSAGE: Saved run settings", fn_out_settings,"\n" ) ) }
-
-        # Write out the AARDVARK data for optional further analysis
-        if( opt$write_rdata ){
-            if( opt$verbose ){ cat( paste("MESSAGE: Writing AARDVARK R objects in Rdata file", fn_out_Rdata, "\n" ) ) }
-            save( reads, read_summary, file = fn_out_Rdata )
-            if( opt$verbose ){ cat( paste("MESSAGE: Saved AARDVARK R object file\n" ) ) }
-        }
-
         if( opt$verbose ){ cat( paste0( "MESSAGE: AARDVARK run ", i, " of ", dim(variants)[1] ," completed.\n") )}
     }
 }

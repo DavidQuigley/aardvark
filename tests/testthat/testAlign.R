@@ -23,6 +23,15 @@ AW = aardvark::AlignmentWindow( BSgenome.Hsapiens.UCSC.hg38, chrom="chr13",
                                 GM$pos - 3000, GM$pos + 3000,
                                 min_length_for_homopolymer = 5   )
 
+# temporarily commented out until I work out how to import both hg38 and hg19
+# without triggering a replacing previous import warning
+#GM_hg19 = aardvark::Mutation( chrom="13", pos=32913794, seq_ref = "CTT", seq_alt = "C", transcript=transcript_BRCA2)
+#gr_pathogenic_hg19 = aardvark::genomicRangesFromMutation(GM_hg19)
+#AW_hg19 = aardvark::AlignmentWindow( BSgenome.Hsapiens.UCSC.hg19, chrom="13",
+#                                GM_hg19$pos - 3000, GM_hg19$pos + 3000,
+#                                min_length_for_homopolymer = 5   )
+
+
 
 # Test homopolymer detection in the region chr13:
 expect_equal( AW$start, 32336658 )
@@ -217,6 +226,32 @@ expect_equal( rd$cigar_ranges$start[1], 1 )
 expect_equal( rd$cigar_ranges$end[1], 12 )
 expect_equal( rd$cigar_ranges$ref_start[1], 32339660 )
 expect_equal( rd$cigar_ranges$ref_end[1], 32339671 )
+
+# HG19 check with non-UCSC chromosome specification, same as previous test
+# temporarily commented out until I work out how to import both hg38 and hg19
+# without triggering a replacing previous import warning
+
+# does not intersect germline locus, should't do anything
+# AATAAACTTGATTCTGGTATT  ref
+# AATAAAC--GATTCTGGTATT  germline
+#          GATTCTGGTATT  read
+#          GATTCTGGTATT  outcome
+
+# read = aardvark::Read(
+#     qname="test",
+#     chrom="13",
+#     pos=32913797,
+#     seq=DNAString("GATTCTGGTATT"),
+#     qual=c(37,37,37,37,37,37,37,37,37,37,37,37),
+#     cigar="12M")
+# rd = aardvark::realign_read( read, AW_hg19, pathogenic_mutation=GM_hg19, gr_pathogenic=gr_pathogenic_hg19, allow_insertions_in_realign=TRUE)
+
+#expect_equal( dim( rd$cigar_ranges)[1],1 )
+#expect_equal( rd$cigar_ranges$start[1], 1 )
+#expect_equal( rd$cigar_ranges$end[1], 12 )
+#expect_equal( rd$cigar_ranges$ref_start[1], 32913797 )
+#expect_equal( rd$cigar_ranges$ref_end[1], 32913797+11 )
+
 
 # intersects germline locus with WT sequence, should't do anything
 # AATAAACTTGATTCTGGTA  ref
