@@ -61,12 +61,13 @@ suppressPackageStartupMessages( require( Biostrings, quietly=TRUE, warn.conflict
 suppressPackageStartupMessages( require( stringr, quietly=TRUE, warn.conflicts=FALSE ) )
 suppressPackageStartupMessages( require( biomaRt, quietly=TRUE, warn.conflicts=FALSE ) )
 suppressPackageStartupMessages( require( ensembldb, quietly=TRUE, warn.conflicts=FALSE ) )
-suppressPackageStartupMessages( require( EnsDb.Hsapiens.v86, quietly=TRUE, warn.conflicts=FALSE ) )
 suppressPackageStartupMessages( require( aardvark, quietly=TRUE, warn.conflicts=FALSE ) )
 if( opt$genome_draft == 38 ){
+    suppressPackageStartupMessages( require( EnsDb.Hsapiens.v86, quietly=TRUE, warn.conflicts=FALSE ) )
     suppressPackageStartupMessages( require( BSgenome.Hsapiens.UCSC.hg38, quietly=TRUE, warn.conflicts=FALSE ) )
 }else{
     suppressPackageStartupMessages( require( BSgenome.Hsapiens.UCSC.hg19, quietly=TRUE, warn.conflicts=FALSE ) )
+    suppressPackageStartupMessages( require( EnsDb.Hsapiens.v75, quietly=TRUE, warn.conflicts=FALSE ) )
 }
 VCF = suppressWarnings( VariantAnnotation::readVcf( opt$fn_vcf ) )
 variants = data.frame( rowRanges( VCF ) )
@@ -137,13 +138,14 @@ if( dim(variants)[1] > 0 ){
                 if( ! exists("ensembl") ){
                     if( opt$genome_draft== 38 ){
                         ensembl = biomaRt::useDataset("hsapiens_gene_ensembl", mart = biomaRt::useMart("ensembl") )
+                        transcript = aardvark::TranscriptData( ensembl, EnsDb.Hsapiens.v86, opt$transcript_id )
                     }else{
                         ensembl <-useMart(biomart="ENSEMBL_MART_ENSEMBL",
                                           host="https://grch37.ensembl.org",
                                           path="/biomart/martservice", dataset="hsapiens_gene_ensembl")
+                        transcript = aardvark::TranscriptData( ensembl, EnsDb.Hsapiens.v75, opt$transcript_id )
                     }
                 }
-                transcript = aardvark::TranscriptData( ensembl, EnsDb.Hsapiens.v86, opt$transcript_id )
             }
             # alignment window has to be larger than window because realignment can push
             # reads outside of their originally aligned locations

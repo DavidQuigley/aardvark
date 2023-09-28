@@ -22,7 +22,7 @@ option_list <- list(
     make_option(c("-q", "--min_nt_qual"), type = "numeric", help = "Minimum quality score for realigned nucleotides, default: 20", default=20),
     make_option(c("-x", "--proxy_http"), type = "character", help = "Address of proxy server to use for HTTP requests, only relevant if behind a proxy server, default empty"),
     make_option(c("-y", "--proxy_https"), type = "character", help = "Address of proxy server to use for HTTPS requests, only relevant if behind a proxy server, default empty"),
-    make_option(c("-r", "--write_rdata"), type = "logical", action="store_true", help = "Write RData file with analysis results to output folder, default FALSE", default=FALSE),
+    make_option(c("-f", "--write_rdata"), type = "logical", action="store_true", help = "Write RData file with analysis results to output folder, default FALSE", default=FALSE),
     make_option(c("-v", "--verbose"), type = "logical", action="store_true", help = "Write progress to stdout, default TRUE", default=TRUE)
 )
 
@@ -68,7 +68,6 @@ suppressPackageStartupMessages( require( BSgenome.Hsapiens.UCSC.hg38, quietly=TR
 suppressPackageStartupMessages( require( BSgenome.Hsapiens.UCSC.hg19, quietly=TRUE, warn.conflicts=FALSE ) )
 suppressPackageStartupMessages( require( biomaRt, quietly=TRUE, warn.conflicts=FALSE ) )
 suppressPackageStartupMessages( require( ensembldb, quietly=TRUE, warn.conflicts=FALSE ) )
-suppressPackageStartupMessages( require( EnsDb.Hsapiens.v86, quietly=TRUE, warn.conflicts=FALSE ) )
 suppressPackageStartupMessages( require( VariantAnnotation, quietly=TRUE, warn.conflicts=FALSE ) )
 suppressPackageStartupMessages( require( aardvark, quietly=TRUE, warn.conflicts=FALSE ) )
 
@@ -76,38 +75,44 @@ if( opt$verbose ){  cat( paste0( "MESSAGE: Loading Ensembl data and fetching tra
                                    opt$transcript_id, "\n" ) ) }
 
 if( opt$genome_draft== 38 ){
+    suppressPackageStartupMessages( require( EnsDb.Hsapiens.v86, quietly=TRUE, warn.conflicts=FALSE ) )
+    suppressPackageStartupMessages( require( BSgenome.Hsapiens.UCSC.hg38, quietly=TRUE, warn.conflicts=FALSE ) )
     ensembl = biomaRt::useDataset("hsapiens_gene_ensembl", mart = biomaRt::useMart("ensembl") )
 }else{
+    suppressPackageStartupMessages( require( BSgenome.Hsapiens.UCSC.hg19, quietly=TRUE, warn.conflicts=FALSE ) )
+    suppressPackageStartupMessages( require( EnsDb.Hsapiens.v75, quietly=TRUE, warn.conflicts=FALSE ) )
     ensembl <-useMart(biomart="ENSEMBL_MART_ENSEMBL",
                       host="https://grch37.ensembl.org",
                       path="/biomart/martservice", dataset="hsapiens_gene_ensembl")
 }
 
-transcript = aardvark::TranscriptData( ensembl, EnsDb.Hsapiens.v86, opt$transcript_id )
 if( opt$genome_draft == 38 ){
+    transcript = aardvark::TranscriptData( ensembl, EnsDb.Hsapiens.v86, opt$transcript_id )
     Hsapiens_version = BSgenome.Hsapiens.UCSC.hg38
 }else if( opt$genome_draft == 19 ){
+    transcript = aardvark::TranscriptData( ensembl, EnsDb.Hsapiens.v75, opt$transcript_id )
     Hsapiens_version = BSgenome.Hsapiens.UCSC.hg19
 }
 
 window_start = opt$position - round(opt$window_size/2)
 window_end =  opt$position + round(opt$window_size/2)
 alignment_helper = aardvark::AlignmentWindow(Hsapiens_version,
-                                             opt$chrom,
+                                             opt$chromosome,
                                              window_start = window_start,
                                              window_end = window_end)
 
-pathogenic_mutation = aardvark::Mutation(chrom = opt$chrom,
+pathogenic_mutation = aardvark::Mutation(chrom = opt$chromosome,
                                        pos = opt$position,
                                        seq_ref = opt$REF,
-                                       seq_alt = opt$ALT)
+                                       seq_alt = opt$ALT,
+                                       transcript = transcript)
 
 if( opt$verbose ){  cat( paste0( "MESSAGE: Reading BAM ", opt$fn_bam, '\n' ) ) }
 if( opt$verbose ){  cat( paste0( "MESSAGE: Loading reads in range ",
                                  opt$chrom, ":", window_start, "-", window_end, "\n" ) ) }
 
 bb = aardvark::BamData( fn_bam = opt$fn_bam,
-                        chrom = opt$chrom,
+                        chrom = opt$chromosome,
                         start = window_start,
                         end = window_end)
 reads = vector( mode = "list", length = bb$N )
@@ -128,16 +133,17 @@ for( ctr in 1:bb$N ){
                                    min_nt_qual = opt$min_nt_qual)
     reads[[ ctr ]] = aardvark::assess_reversion(read,
                                                 transcript,
-                                                pathogenic_mutation,
-                                                opt$min_nt_qual,
-                                                gr_pathogenic,
+                                                pathogenic = pathogenic_mutation,
+                                                align_window = alignment_helper,
+                                                min_nt_qual = opt$min_nt_qual,
+                                                gr_pathogenic = gr_pathogenic,
                                                 gr_exclude = alignment_helper$homopolymer_regions)
 }
 if( opt$verbose ){ cat( "MESSAGE: Completed realignment, writing output files\n" ) }
 
 read_summary = aardvark::summarize_candidates( reads, transcript, pathogenic_mutation = pathogenic_mutation )
 
-ss = paste0( opt$sample_id, "_", opt$chrom, "_", opt$position )
+ss = paste0( opt$sample_id, "_", opt$chromosome, "_", opt$position )
 fn_out_Rdata = paste0( opt$dir_out, "/", ss, "_AARDVARK.RData")
 fn_out_txt = paste0( opt$dir_out, "/", ss, "_AARDVARK_reversion_summary.txt")
 fn_out_reads = paste0( opt$dir_out, "/", ss, "_AARDVARK_reversion_summary_with_reads.txt")
@@ -159,7 +165,7 @@ df_param = rbind( df_param, c( "sample_id", opt$sample_id ) )
 df_param = rbind( df_param, c( "input_bam", opt$fn_bam ) )
 df_param = rbind( df_param, c( "output_dir", opt$dir_out ) )
 df_param = rbind( df_param, c( "transcript_identifier", opt$transcript_id ) )
-df_param = rbind( df_param, c( "chromosome", opt$chrom ) )
+df_param = rbind( df_param, c( "chromosome", opt$chromosome ) )
 df_param = rbind( df_param, c( "variant_position", opt$position ) )
 df_param = rbind( df_param, c( "variant_REF", opt$REF ) )
 df_param = rbind( df_param, c( "variant_ALT", opt$ALT ) )

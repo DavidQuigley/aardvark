@@ -24,6 +24,7 @@ Imports:
     IRanges,
     biomaRt,
     EnsDb.Hsapiens.v86,
+    EnsDb.Hsapiens.v75,
     testthat
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.2.3
