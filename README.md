@@ -165,6 +165,7 @@ for( ctr in 1 : ERR2851475$N ){
 # ------------------------------------------------------------------------------
 # summarize and plot the results
 # ------------------------------------------------------------------------------
+transcript = aardvark::transcript_BRCA2
 read_summary = aardvark::summarize_candidates( reads, transcript, path_mut )
 
 ensembl = biomaRt::useDataset("hsapiens_gene_ensembl", mart = biomaRt::useMart("ensembl") )
