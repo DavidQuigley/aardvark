@@ -66,6 +66,7 @@ plot_reversion_summary = function( reversion_summary,
     group_names = c()
     group_lengths = c()
     ids = c()
+
     for(i in 1:length(reversions)){
         segs = strsplit( reversions[i], "_" )[[1]]
         newslug = c()
@@ -79,7 +80,12 @@ plot_reversion_summary = function( reversion_summary,
         }
 
         n_appearances = reversion_summary$N[ which(reversion_summary$reversion==reversions[i] )[1] ]
-        group_names = c( group_names, paste0( n_appearances, "x ", slug_encoding) )
+        new_group_name = paste0( n_appearances, "x ", slug_encoding)
+        if( sum( group_names == new_group_name  ) > 0 ){
+            new_pos = reversion_summary$pos[reversion_summary$reversion==reversions[i]][1]
+            new_group_name = paste0( new_group_name, " (", new_pos, ")")
+        }
+        group_names = c( group_names, new_group_name )
         group_lengths = c(group_lengths, length(segs))
         for( j in 1:length( segs ) ){
             tokens = strsplit( segs[j], ":")[[1]]
@@ -94,6 +100,7 @@ plot_reversion_summary = function( reversion_summary,
         }
     }
 
+    repeat_tag = 2
     aTrack <- Gviz::AnnotationTrack(start = starts, width = widths,
                                     chromosome = chrom,
                                     strand = rep("+", length(starts)),
@@ -118,7 +125,6 @@ plot_reversion_summary = function( reversion_summary,
                       shape = "box",
                       pathogenic="cornflowerblue", reversions="black", gene="lightgrey",
                       fontcolor.feature = "black",
-                      #featureAnnotation = "id",
                       groupAnnotation = "group",
                       cex.group = text_size_adjustment,
                       cex=text_size_adjustment, collapse=FALSE, cex.main=1)

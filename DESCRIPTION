@@ -1,7 +1,7 @@
 Package: aardvark
 Type: Package
 Title: An Automated Reversion Detector for Variants Affecting Resistance Kinetics
-Version: 0.3
+Version: 0.31
 Author: David Quigley
 Maintainer: David Quigley <david.quigley@ucsf.edu>
 Description: Reversion mutations are the most common mechanism of resistance to two major types of cancer therapy drugs, platinum agents and PARP inhibitors. Reversion mutations are DNA alterations (mutations or structural variants) that revert a mutated allele of a gene back to an allele that is predicted to produce a functional protein. The AARDVARK package identifies reversion mutations conferring drug resistance in aligned sequence data through local realignment, aided by prior knowledge of the underlying pathogenic mutation.

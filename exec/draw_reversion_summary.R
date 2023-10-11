@@ -41,14 +41,15 @@ if( sum( names(opt)=="proxy_http")==1 & sum( names(opt)=="proxy_https")==1 ){
     Sys.setenv( https_proxy = opt$proxy_https )
 }
 
-bm <- useEnsembl(biomart = "ENSEMBL_MART_ENSEMBL", dataset = "hsapiens_gene_ensembl")
+
 sums = read.table( opt$fn_summary, sep='\t', header=TRUE)
 pdf( opt$fn_out, height=opt$fig_height, width=opt$fig_width)
 if( opt$genome_draft==38 ){
+    bm <- useEnsembl(biomart = "ENSEMBL_MART_ENSEMBL", dataset = "hsapiens_gene_ensembl")
     suppressPackageStartupMessages( require( BSgenome.Hsapiens.UCSC.hg38, quietly=TRUE, warn.conflicts=FALSE ) )
-    plot_reversion_summary( sums,
+    plot_reversion_summary( reversion_summary = sums,
                             genome_version=opt$genome_draft,
-                            BSgenome.Hsapiens.UCSC.hg38::Hsapiens,
+                            hsapiens_object = BSgenome.Hsapiens.UCSC.hg38::Hsapiens,
                             biomart_object=bm,
                             pos_start=opt$pos_start,
                             pos_end = opt$pos_end,
@@ -56,9 +57,11 @@ if( opt$genome_draft==38 ){
                             min_freq=opt$min_freq)
 }else{
     suppressPackageStartupMessages( require( BSgenome.Hsapiens.UCSC.hg19, quietly=TRUE, warn.conflicts=FALSE ) )
-    plot_reversion_summary( sums,
+    suppressPackageStartupMessages( require( EnsDb.Hsapiens.v75) )
+    bm <- useEnsembl(biomart = "ENSEMBL_MART_ENSEMBL", dataset = "hsapiens_gene_ensembl",GRCh = 37)
+    plot_reversion_summary( reversion_summary = sums,
                             genome_version=opt$genome_draft,
-                            BSgenome.Hsapiens.UCSC.hg19::Hsapiens,
+                            hsapiens_object = BSgenome.Hsapiens.UCSC.hg19::Hsapiens,
                             biomart_object = bm,
                             pos_start = opt$pos_start,
                             pos_end = opt$pos_end,
