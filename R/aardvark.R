@@ -573,86 +573,91 @@ locally_realign_read = function( read,
         n_match_pre = sum( rr_realign$read==rr_realign$ref | rr_realign$qual<min_nt_qual )
         idx_left = (1:near_bound)[ rr_realign$qual[1:near_bound] >= min_nt_qual ]
         idx_right = ( dim(rr_realign)[1] - near_bound ) : dim(rr_realign)[1]
-        idx_right = idx_right[ rr_realign$qual[ idx_right ] >= min_nt_qual ]
 
-        has_mismatch_at_left =  sum( rr_realign$read[idx_left]  != rr_realign$ref[idx_left] ) > 0
-        has_mismatch_at_right = sum( rr_realign$read[idx_right] != rr_realign$ref[idx_right] )  > 0
+        # Added defensive code to deal with low-quality values that fail to produce indices
+        if( ( !is.na(sum( idx_left )) & sum( idx_left<0 )==0 ) &
+            ( !is.na(sum( idx_right )) & sum( idx_right<0 )==0 ) ){
+            idx_right = idx_right[ rr_realign$qual[ idx_right ] >= min_nt_qual ]
 
-        if( has_mismatch_at_left | has_mismatch_at_right ){
-            # dels extend the reference space covered by the read
-            #sum_of_deletions = sum( read$cigar_ranges$width[ read$cigar_ranges$cigar_code=="D"] )
-            sum_of_deletions=0 # modified because we're restricting this to just one range with type M
-            # extend range for reference to be larger than read by near_bound, only in direction of
-            ref_start = rr_realign$pos[1] - sum_of_deletions
-            ref_end = rr_realign$pos[ dim(rr_realign)[1] ] + sum_of_deletions
-            if( realign_side=="left" | realign_side == "both" ){
-                ref_start = ref_start - ( near_bound * 3 ) # size of gap may be larger than interior bound for mutation
-            }
-            if( realign_side=="right" | realign_side == "both" ){
-                ref_end = ref_end + ( near_bound * 3 )
-            }
-            seq_ref = AW_seq( align_window, pos_start = ref_start, pos_end = ref_end)
-            pwa = pairwiseAlignment( DNAString( paste( rr_realign$read, collapse="" ) ),
-                                     seq_ref, gapOpening=2, gapExtension=1,
-                                     patternQuality = PhredQuality( as.integer( rr_realign$qual  ) ),
-                                     subjectQuality = PhredQuality( as.integer( rep(40, length(seq_ref) ) ) ),
-                                     type="global-local")
+            has_mismatch_at_left =  sum( rr_realign$read[idx_left]  != rr_realign$ref[idx_left] ) > 0
+            has_mismatch_at_right = sum( rr_realign$read[idx_right] != rr_realign$ref[idx_right] )  > 0
 
-            vec_full = strsplit(toString( aligned( pwa ) ), "")[[1]]      # aligned including leading/trailing
-            pos_start = ref_start + min( which( vec_full != "-" ) ) - 1 # first aligned pos with ACGT
+            if( has_mismatch_at_left | has_mismatch_at_right ){
+                # dels extend the reference space covered by the read
+                #sum_of_deletions = sum( read$cigar_ranges$width[ read$cigar_ranges$cigar_code=="D"] )
+                sum_of_deletions=0 # modified because we're restricting this to just one range with type M
+                # extend range for reference to be larger than read by near_bound, only in direction of
+                ref_start = rr_realign$pos[1] - sum_of_deletions
+                ref_end = rr_realign$pos[ dim(rr_realign)[1] ] + sum_of_deletions
+                if( realign_side=="left" | realign_side == "both" ){
+                    ref_start = ref_start - ( near_bound * 3 ) # size of gap may be larger than interior bound for mutation
+                }
+                if( realign_side=="right" | realign_side == "both" ){
+                    ref_end = ref_end + ( near_bound * 3 )
+                }
+                seq_ref = AW_seq( align_window, pos_start = ref_start, pos_end = ref_end)
+                pwa = pairwiseAlignment( DNAString( paste( rr_realign$read, collapse="" ) ),
+                                         seq_ref, gapOpening=2, gapExtension=1,
+                                         patternQuality = PhredQuality( as.integer( rr_realign$qual  ) ),
+                                         subjectQuality = PhredQuality( as.integer( rep(40, length(seq_ref) ) ) ),
+                                         type="global-local")
 
-            vec_read = strsplit( as.character( pattern(pwa) ), "")[[1]] # aligned (trimmed)
-            vec_ref = strsplit( as.character( subject(pwa) ), "")[[1]]  # reference (trimmed)
-            rr_combined = data.frame(
-                pos = pos_start : ( pos_start + length(vec_ref) - 1 ),
-                read = vec_read,
-                ref = vec_ref,
-                qual = rep(0, length(vec_read)), stringsAsFactors = FALSE )
-            if( length( which( rr_combined$read != "-" ) ) == length( rr_realign$qual)){
-                rr_combined$qual[ which( rr_combined$read != "-" ) ] = rr_realign$qual
-                # low-quality nucleotides that are called inserts rewritten as a mismatch
-                # to avoid preserving insert when we call rebuild_read_from_realignment()
-                idx_lowqual_inserts = which( rr_combined$read != "-" & rr_combined$ref=="-" & rr_combined$qual < min_nt_qual)
-                if( length( idx_lowqual_inserts>0 )){
-                    for(i in 1:length( idx_lowqual_inserts )){
-                        rr_combined$ref[ idx_lowqual_inserts[i] ] = AW_get_nucleotide(align_window,
-                                                                                      rr_combined$pos[ idx_lowqual_inserts[i]] )
+                vec_full = strsplit(toString( aligned( pwa ) ), "")[[1]]      # aligned including leading/trailing
+                pos_start = ref_start + min( which( vec_full != "-" ) ) - 1 # first aligned pos with ACGT
+
+                vec_read = strsplit( as.character( pattern(pwa) ), "")[[1]] # aligned (trimmed)
+                vec_ref = strsplit( as.character( subject(pwa) ), "")[[1]]  # reference (trimmed)
+                rr_combined = data.frame(
+                    pos = pos_start : ( pos_start + length(vec_ref) - 1 ),
+                    read = vec_read,
+                    ref = vec_ref,
+                    qual = rep(0, length(vec_read)), stringsAsFactors = FALSE )
+                if( length( which( rr_combined$read != "-" ) ) == length( rr_realign$qual)){
+                    rr_combined$qual[ which( rr_combined$read != "-" ) ] = rr_realign$qual
+                    # low-quality nucleotides that are called inserts rewritten as a mismatch
+                    # to avoid preserving insert when we call rebuild_read_from_realignment()
+                    idx_lowqual_inserts = which( rr_combined$read != "-" & rr_combined$ref=="-" & rr_combined$qual < min_nt_qual)
+                    if( length( idx_lowqual_inserts>0 )){
+                        for(i in 1:length( idx_lowqual_inserts )){
+                            rr_combined$ref[ idx_lowqual_inserts[i] ] = AW_get_nucleotide(align_window,
+                                                                                          rr_combined$pos[ idx_lowqual_inserts[i]] )
+                        }
                     }
+                }else{
+                    # there's an edge case where additional deletions are placed in the newly aligned read, and we can't
+                    # be sure where to reassign the quality scores. This workaround is not ideal but it prevents a warning
+                    # that can otherwise sink us
+                    rr_combined$qual[ which( rr_combined$read != "-" ) ] = median(rr_realign$qual)
                 }
-            }else{
-                # there's an edge case where additional deletions are placed in the newly aligned read, and we can't
-                # be sure where to reassign the quality scores. This workaround is not ideal but it prevents a warning
-                # that can otherwise sink us
-                rr_combined$qual[ which( rr_combined$read != "-" ) ] = median(rr_realign$qual)
-            }
-            n_new_inserts = sum( rr_combined$read != "-" & rr_combined$ref=="-" & rr_combined$qual >= min_nt_qual)
+                n_new_inserts = sum( rr_combined$read != "-" & rr_combined$ref=="-" & rr_combined$qual >= min_nt_qual)
 
-            n_match_post = sum( rr_combined$read == rr_combined$ref |
-                                    (rr_combined$read != "-" & rr_combined$qual < min_nt_qual) )
-            if( n_match_post > n_match_pre &
-                (n_new_inserts==0 | allow_insertions_in_realign) ){
-                read = rebuild_read_from_realignment( read, rr_combined )
-                read$cigar_ranges = rbind( read$cigar_ranges, cigar_preserve )
-                #read$cigar_ranges = read$cigar_ranges[order( read$cigar_ranges$start ), ]
-                read$cigar_ranges = read$cigar_ranges[order( read$cigar_ranges$ref_start ), ]
-                pos_cur=1
-                for(i in 1:dim(read$cigar_ranges)[1]){
-                    read$cigar_ranges$start[i] = pos_cur
-                    if( read$cigar_ranges$cigar_code[i] != "D"){
-                        read$cigar_ranges$end[i] = pos_cur + read$cigar_ranges$width[i] - 1
-                        pos_cur = read$cigar_ranges$end[i] + 1
-                    }else{
-                        read$cigar_ranges$end[i] = read$cigar_ranges$start[i]
+                n_match_post = sum( rr_combined$read == rr_combined$ref |
+                                        (rr_combined$read != "-" & rr_combined$qual < min_nt_qual) )
+                if( n_match_post > n_match_pre &
+                    (n_new_inserts==0 | allow_insertions_in_realign) ){
+                    read = rebuild_read_from_realignment( read, rr_combined )
+                    read$cigar_ranges = rbind( read$cigar_ranges, cigar_preserve )
+                    #read$cigar_ranges = read$cigar_ranges[order( read$cigar_ranges$start ), ]
+                    read$cigar_ranges = read$cigar_ranges[order( read$cigar_ranges$ref_start ), ]
+                    pos_cur=1
+                    for(i in 1:dim(read$cigar_ranges)[1]){
+                        read$cigar_ranges$start[i] = pos_cur
+                        if( read$cigar_ranges$cigar_code[i] != "D"){
+                            read$cigar_ranges$end[i] = pos_cur + read$cigar_ranges$width[i] - 1
+                            pos_cur = read$cigar_ranges$end[i] + 1
+                        }else{
+                            read$cigar_ranges$end[i] = read$cigar_ranges$start[i]
+                        }
                     }
-                }
-                read$pos = min( read$cigar_ranges$ref_start[ read$cigar_ranges$cigar_code  != "S" ] )
-                read$has_realigned_read_end = TRUE
-                read$has_realigned_softclipped = TRUE
-                if( realign_side == "right" ){
-                    read$has_realigned_softclipped_right = TRUE
-                }
-                if( realign_side == "left" ){
-                    read$has_realigned_softclipped_left = TRUE
+                    read$pos = min( read$cigar_ranges$ref_start[ read$cigar_ranges$cigar_code  != "S" ] )
+                    read$has_realigned_read_end = TRUE
+                    read$has_realigned_softclipped = TRUE
+                    if( realign_side == "right" ){
+                        read$has_realigned_softclipped_right = TRUE
+                    }
+                    if( realign_side == "left" ){
+                        read$has_realigned_softclipped_left = TRUE
+                    }
                 }
             }
         }
