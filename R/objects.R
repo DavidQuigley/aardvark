@@ -51,20 +51,23 @@ AlignmentWindow = function( Hsapiens_version, chrom, window_start, window_end, m
 
 #' helper function to return a slice of an AlignmentWindow character vector between pos_start and pos_end
 #'
+#' If pos_start or pos_end is out of bounds for AW, message the problem and return NULL
 #' @param AW Alignment Window object to examine
 #' @param pos_start first position to return
 #' @param pos_end last position to return
 #' @returns vector of characters within AW$vec
 AW_vec = function( AW, pos_start, pos_end){
     if( pos_start < AW$start ){
-        stop( paste("request for position",pos_start,"out of range, AlignmentWindow range starts at",AW$start) )
+        message( paste("request for position",pos_start,"out of range, AlignmentWindow range starts at",AW$start) )
+        NULL
+    }else if( pos_end > AW$end ){
+        message( paste("request for position", pos_end, "out of range, AlignmentWindow range ends at",AW$end) )
+        NULL
+    }else{
+        idx_start = pos_start - AW$start + 1
+        idx_end = pos_end - AW$start + 1
+        AW$vec[ (pos_start - AW$start + 1) : ( pos_end - AW$start + 1 ) ]
     }
-    if( pos_end > AW$end ){
-        stop( paste("request for position", pos_end, "out of range, AlignmentWindow range ends at",AW$end) )
-    }
-    idx_start = pos_start - AW$start + 1
-    idx_end = pos_end - AW$start + 1
-    AW$vec[ (pos_start - AW$start + 1) : ( pos_end - AW$start + 1 ) ]
 }
 
 #' helper function to return a slice of an AlignmentWindow DNAString between pos_start and pos_end

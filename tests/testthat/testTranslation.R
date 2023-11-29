@@ -19,6 +19,17 @@ test_that("translation works", {
     expect_equal( str_count(as.character(aa), stringr::fixed("*")), 1 )
     expect_equal( length(aa), str_locate(as.character(aa), stringr::fixed("*") )[1] )
 
+
+    # read includes N string, shoud report NULL
+    pos=32339628
+    seq=DNAString("NTGATTCAGGATATCTCTCAAAAAATAAACTTGATTCTGGTATTGAGCCAGTATTGAAGA")
+    qual=rep(37, length(seq) )
+    cigar = "60M"
+    chrom="chr13"
+    read=Read( "test", cigar, chrom, pos, seq, qual )
+    aa=suppressMessages( translate_cigar( transcript_BRCA2, read, pathogenic, min_nt_qual ) )
+    expect_null( aa )
+
     # read that does not overlap pathogenic mutation, expect frameshifts
     pos=32338587
     seq=DNAString("CTACTAAAACGGAGCAAAATATAAAAGATTTTGAGACTTCTGATACATTTTTTCAGACTG")

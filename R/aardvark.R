@@ -116,23 +116,42 @@ realign_right_softclip = function( read, min_percent_realigned, align_window){
 
     read_original = read
     if( align_result$longest_alignment >= clipped_width * min_percent_realigned ){
-        # for soft clipping, read position is reported as last non-clipped locus
-        # newly detected deletion starts at ref_end and moves to pos, the first aligned position.
-        read$cigar_ranges$cigar_code[ii] = "D" # was soft-clipped, reclassifying as deletion
-        read$cigar_ranges$ref_start[ii] = read$pos + read$cigar_ranges$start[ii] - 1
-        read$cigar_ranges$ref_end[ii] = align_result$ref_start - 1  # immediately before start of newly aligned read
-        read$cigar_ranges$width[ii] = align_result$ref_start - read$cigar_ranges$ref_start[ii]
-        read$cigar_ranges$end[ii] = read$cigar_ranges$start[ii]
-        read$cigar_ranges = rbind(
-            read$cigar_ranges,
-            data.frame( start = read$cigar_ranges$start[ii],
-                        end = read$cigar_ranges$start[ii] + align_result$longest_alignment - 1,
-                        width=str_length(clipped_seq),
-                        cigar_code_original="S",
-                        cigar_code="M",
-                        ref_start= align_result$ref_start,
-                        ref_end=align_result$ref_end-1), stringsAsFactors = FALSE ) # DEBUG added -1
 
+        if( align_result$ref_start == ( max( read$cigar_ranges$ref_end, na.rm=TRUE)+1 )){
+            # Usually, successful alignment of soft clipping produces a new alignment
+            # that reveals a deletion. However, it is possible for the aligner assign soft
+            # clipping to contiguous nucleotides that to our eyes shouldn't be clipped at all,
+            # so it appears the soft clip should have been a M all along. The default
+            # behavior assigns a deletion and would produces incorrect results
+            # if we need to convert a soft clip in place, so we check to see if
+            # the reference position of the newly aligned soft clip is adjacent
+            # to the end of the last correctly aligned region
+            read$cigar_ranges$end[ii] = read$cigar_ranges$start[ii] + align_result$longest_alignment - 1
+            read$cigar_ranges$width[ii] = str_length(clipped_seq)
+            read$cigar_ranges$end[ii] = read$cigar_ranges$start[ii] + align_result$longest_alignment - 1
+            read$cigar_ranges$cigar_code_original[ii]="S"
+            read$cigar_ranges$cigar_code[ii] = "M"
+            read$cigar_ranges$ref_start[ii] = align_result$ref_start
+            read$cigar_ranges$ref_end[ii]=align_result$ref_end-1
+        }else{
+
+            # for soft clipping, read position is reported as last non-clipped locus
+            # newly detected deletion starts at ref_end and moves to pos, the first aligned position.
+            read$cigar_ranges$cigar_code[ii] = "D" # was soft-clipped, reclassifying as deletion
+            read$cigar_ranges$ref_start[ii] = read$pos + read$cigar_ranges$start[ii] - 1
+            read$cigar_ranges$ref_end[ii] = align_result$ref_start - 1  # immediately before start of newly aligned read
+            read$cigar_ranges$width[ii] = align_result$ref_start - read$cigar_ranges$ref_start[ii]
+            read$cigar_ranges$end[ii] = read$cigar_ranges$start[ii]
+            read$cigar_ranges = rbind(
+                read$cigar_ranges,
+                data.frame( start = read$cigar_ranges$start[ii],
+                            end = read$cigar_ranges$start[ii] + align_result$longest_alignment - 1,
+                            width=str_length(clipped_seq),
+                            cigar_code_original="S",
+                            cigar_code="M",
+                            ref_start= align_result$ref_start,
+                            ref_end=align_result$ref_end-1), stringsAsFactors = FALSE )
+        }
         read$has_del=TRUE
         read$has_realigned_softclipped=TRUE
         read$has_realigned_softclipped_right=TRUE
@@ -196,70 +215,39 @@ realign_repeat_pathogenic_deletions = function( read,
                                                 gr_pathogenic,
                                                 pathogenic_mutation,
                                                 align_window){
-    if( pathogenic_mutation$mutation_class == "deletion" ){
-        mut_ref_vals = pathogenic_mutation$location$ref
-        mut_len = length( mut_ref_vals )
-        ss = read_to_genome_sequence( read, align_window )
-        # this analysis only makes sense if the read overlaps the pathogenic
-        # and there is at least one deletion in the alignment
+    tryCatch({
+        if( pathogenic_mutation$mutation_class == "deletion" ){
+            mut_ref_vals = pathogenic_mutation$location$ref
+            mut_len = length( mut_ref_vals )
+            ss = read_to_genome_sequence( read, align_window )
+            # this analysis only makes sense if the read overlaps the pathogenic
+            # and there is at least one deletion in the alignment
 
-        # test if pathogenic is in read from start and end and is a deletion
-        idx_mut = which( ss$pos == pathogenic_mutation$pos )
-        if( length(idx_mut) == 1 ){
-            if( (idx_mut + (2*mut_len) - 1 <= dim(ss)[1] ) &
-                (idx_mut - (2*mut_len) > 0 ) &
-                sum( read$cigar_ranges$cigar_code == "D") > 0 ){
-                # walk through pathogenic: if for all pathogenic loci
-                #   present in ss at pathogenic and absent at 3p adjacent and values are repeated
-                #     -> rewrite 3p
-                pos = pathogenic_mutation$pos
-                move_adjacent_on_3p = TRUE
-                adjacent_3p = AW_seq( align_window, pathogenic_mutation$pos + mut_len, pathogenic_mutation$pos + mut_len + mut_len - 1 )
-                for( i in 1:mut_len ){
-                    germline_marked_not_deleted = ss$nt[ ss$pos == pos ] != "-"
-                    adjacent_marked_deleted =     ss$nt[ ss$pos == (pos + mut_len) ] == "-"
-                    germline_is_repeat = as.character( adjacent_3p[i] ) == mut_ref_vals[i]
-                    if( length( germline_marked_not_deleted)==1 &
-                        length( adjacent_marked_deleted == 1 ) ){
-                        if( !( germline_marked_not_deleted & adjacent_marked_deleted & germline_is_repeat ) ){
-                            move_adjacent_on_3p = FALSE
-                        }
-                    }
-                    pos = pos+1
-                }
-                if( move_adjacent_on_3p ){
-                    rr_realign = data.frame(
-                        pos = ss$pos,
-                        read = ss$nt,
-                        ref = strsplit( as.character(AW_seq(align_window, ss$pos[1], ss$pos[ dim(ss)[1] ] )), "")[[1]],
-                        qual = rep(30, dim(ss)[1]))
-                    idx = which( rr_realign$pos == pathogenic_mutation$pos )
-                    for( i in 1 : mut_len ){
-                        rr_realign$read[ idx ] = "-"
-                        rr_realign$read[ idx + mut_len ] = rr_realign$ref[idx + mut_len]
-                        idx=idx+1
-                    }
-
-                    read = rebuild_read_from_realignment( read, rr_realign )
-                }else{
+            # test if pathogenic is in read from start and end and is a deletion
+            idx_mut = which( ss$pos == pathogenic_mutation$pos )
+            if( length(idx_mut) == 1 ){
+                if( (idx_mut + (2*mut_len) - 1 <= dim(ss)[1] ) &
+                    (idx_mut - (2*mut_len) > 0 ) &
+                    sum( read$cigar_ranges$cigar_code == "D") > 0 ){
+                    # walk through pathogenic: if for all pathogenic loci
+                    #   present in ss at pathogenic and absent at 3p adjacent and values are repeated
+                    #     -> rewrite 3p
                     pos = pathogenic_mutation$pos
-                    move_adjacent_on_5p = TRUE
-                    adjacent_5p = AW_seq( align_window, pathogenic_mutation$pos - mut_len, pathogenic_mutation$pos -1 )
-
+                    move_adjacent_on_3p = TRUE
+                    adjacent_3p = AW_seq( align_window, pathogenic_mutation$pos + mut_len, pathogenic_mutation$pos + mut_len + mut_len - 1 )
                     for( i in 1:mut_len ){
                         germline_marked_not_deleted = ss$nt[ ss$pos == pos ] != "-"
-                        adjacent_marked_deleted =     ss$nt[ ss$pos == (pos - mut_len) ] == "-"
-                        germline_is_repeat = as.character( adjacent_5p[i] ) == mut_ref_vals[i]
+                        adjacent_marked_deleted =     ss$nt[ ss$pos == (pos + mut_len) ] == "-"
+                        germline_is_repeat = as.character( adjacent_3p[i] ) == mut_ref_vals[i]
                         if( length( germline_marked_not_deleted)==1 &
                             length( adjacent_marked_deleted == 1 ) ){
                             if( !( germline_marked_not_deleted & adjacent_marked_deleted & germline_is_repeat ) ){
-                                move_adjacent_on_5p = FALSE
+                                move_adjacent_on_3p = FALSE
                             }
                         }
                         pos = pos+1
                     }
-
-                    if( move_adjacent_on_5p ){
+                    if( move_adjacent_on_3p ){
                         rr_realign = data.frame(
                             pos = ss$pos,
                             read = ss$nt,
@@ -268,15 +256,50 @@ realign_repeat_pathogenic_deletions = function( read,
                         idx = which( rr_realign$pos == pathogenic_mutation$pos )
                         for( i in 1 : mut_len ){
                             rr_realign$read[ idx ] = "-"
-                            rr_realign$read[ idx - mut_len ] = rr_realign$ref[idx - mut_len]
+                            rr_realign$read[ idx + mut_len ] = rr_realign$ref[idx + mut_len]
                             idx=idx+1
                         }
+
                         read = rebuild_read_from_realignment( read, rr_realign )
+                    }else{
+                        pos = pathogenic_mutation$pos
+                        move_adjacent_on_5p = TRUE
+                        adjacent_5p = AW_seq( align_window, pathogenic_mutation$pos - mut_len, pathogenic_mutation$pos -1 )
+
+                        for( i in 1:mut_len ){
+                            germline_marked_not_deleted = ss$nt[ ss$pos == pos ] != "-"
+                            adjacent_marked_deleted =     ss$nt[ ss$pos == (pos - mut_len) ] == "-"
+                            germline_is_repeat = as.character( adjacent_5p[i] ) == mut_ref_vals[i]
+                            if( length( germline_marked_not_deleted)==1 &
+                                length( adjacent_marked_deleted == 1 ) ){
+                                if( !( germline_marked_not_deleted & adjacent_marked_deleted & germline_is_repeat ) ){
+                                    move_adjacent_on_5p = FALSE
+                                }
+                            }
+                            pos = pos+1
+                        }
+
+                        if( move_adjacent_on_5p ){
+                            rr_realign = data.frame(
+                                pos = ss$pos,
+                                read = ss$nt,
+                                ref = strsplit( as.character(AW_seq(align_window, ss$pos[1], ss$pos[ dim(ss)[1] ] )), "")[[1]],
+                                qual = rep(30, dim(ss)[1]))
+                            idx = which( rr_realign$pos == pathogenic_mutation$pos )
+                            for( i in 1 : mut_len ){
+                                rr_realign$read[ idx ] = "-"
+                                rr_realign$read[ idx - mut_len ] = rr_realign$ref[idx - mut_len]
+                                idx=idx+1
+                            }
+                            read = rebuild_read_from_realignment( read, rr_realign )
+                        }
                     }
                 }
             }
         }
-    }
+    }, error = function(e){
+        print(e$message)
+    })
     read
 }
 
@@ -436,11 +459,16 @@ rebuild_read_from_realignment = function( read, rr ){
     cigar_new = data.frame()
     cigar_code = rep(NA, dim(rr)[1])
     for(i in 1 : dim(rr)[1] ){
-        if( rr$ref[i] == "-" & rr$read[i] != "-" ){
+        if( (rr$ref[i] == "-" & rr$read[i] != "-" ) | (rr$ref[i] == "." & rr$read[i] != ".") ){
             cigar_code[i] = "I"
-        }else if( rr$ref[i] != "-" & rr$read[i] == "-" ){
+        }else if( (rr$ref[i] != "-" & rr$read[i] == "-") | (rr$ref[i] != "." & rr$read[i] == ".")){
             cigar_code[i] = "D"
-        }else if( rr$ref[i] != "-" & rr$read[i] != "-" ){
+            # if deletion was previously a softclipped region the pos value will be 0
+            # need to replace this if possible with deleted positions
+            if( rr$pos[i] == 0 & i>1 & rr$pos[ i-1 ] > 0 ){
+                rr$pos[i] = rr$pos[i-1] + 1
+            }
+        }else if( rr$ref[i] != "-" & rr$read[i] != "-" & rr$ref[i] != "." & rr$read[i] != "."){
             cigar_code[i] = "M"
         }
     }
@@ -553,115 +581,121 @@ locally_realign_read = function( read,
     }
     alignment_idx = alignment_idx_left : alignment_idx_right    # piece of read we'll attempt to realign
 
-    # if mutation overlaps read
-    if( ( end(gr_mut) <= mutation_search_right  & end(gr_mut) >= mutation_search_left ) ||
-        ( start(gr_mut) >= mutation_search_left & start(gr_mut) <= mutation_search_right ) ){
-        vec_read = strsplit( as.character( read$seq ), "")[[1]]
+    tryCatch({
+        # if mutation overlaps read
+        if( ( end(gr_mut) <= mutation_search_right  & end(gr_mut) >= mutation_search_left ) ||
+            ( start(gr_mut) >= mutation_search_left & start(gr_mut) <= mutation_search_right ) ){
+            vec_read = strsplit( as.character( read$seq ), "")[[1]]
 
-        rr_realign = data.frame(
-            pos = read$positions[ alignment_idx ],
-            read = vec_read[ alignment_idx ],
-            qual = read$qualities[ alignment_idx ],
-            ref = rep("-", length( alignment_idx ) ),
-            stringsAsFactors = FALSE )
-        ref_positions = min(rr_realign$pos[ rr_realign$pos>0] ) : max( rr_realign$pos ) # insertions have position = 0
-        ref_in_range = AW_vec( align_window,
-                               pos_start = ref_positions[1],
-                               pos_end = ref_positions[ length( ref_positions ) ])
-        m = match.idx( rr_realign$pos, ref_positions )
-        rr_realign$ref[ m$idx.A ] = ref_in_range[ m$idx.B ]
-        n_match_pre = sum( rr_realign$read==rr_realign$ref | rr_realign$qual<min_nt_qual )
-        idx_left = (1:near_bound)[ rr_realign$qual[1:near_bound] >= min_nt_qual ]
-        idx_right = ( dim(rr_realign)[1] - near_bound ) : dim(rr_realign)[1]
+            rr_realign = data.frame(
+                pos = read$positions[ alignment_idx ],
+                read = vec_read[ alignment_idx ],
+                qual = read$qualities[ alignment_idx ],
+                ref = rep("-", length( alignment_idx ) ),
+                stringsAsFactors = FALSE )
+            ref_positions = min(rr_realign$pos[ rr_realign$pos>0] ) : max( rr_realign$pos ) # insertions have position = 0
+            ref_in_range = AW_vec( align_window,
+                                   pos_start = ref_positions[1],
+                                   pos_end = ref_positions[ length( ref_positions ) ])
+            if( is.null( ref_in_range )){
+                idx_left=NA
+                idx_right=NA
+            }else{
+                m = match.idx( rr_realign$pos, ref_positions )
+                rr_realign$ref[ m$idx.A ] = ref_in_range[ m$idx.B ]
+                n_match_pre = sum( rr_realign$read==rr_realign$ref | rr_realign$qual<min_nt_qual )
+                idx_left = (1:near_bound)[ rr_realign$qual[1:near_bound] >= min_nt_qual ]
+                idx_right = ( dim(rr_realign)[1] - near_bound ) : dim(rr_realign)[1]
+            }
+            # Added defensive code to deal with low-quality values that fail to produce indices
+            if( ( !is.na(sum( idx_left )) & sum( idx_left<0 )==0 ) &
+                ( !is.na(sum( idx_right )) & sum( idx_right<0 )==0 ) ){
+                idx_right = idx_right[ rr_realign$qual[ idx_right ] >= min_nt_qual ]
 
-        # Added defensive code to deal with low-quality values that fail to produce indices
-        if( ( !is.na(sum( idx_left )) & sum( idx_left<0 )==0 ) &
-            ( !is.na(sum( idx_right )) & sum( idx_right<0 )==0 ) ){
-            idx_right = idx_right[ rr_realign$qual[ idx_right ] >= min_nt_qual ]
+                has_mismatch_at_left =  sum( rr_realign$read[idx_left]  != rr_realign$ref[idx_left] ) > 0
+                has_mismatch_at_right = sum( rr_realign$read[idx_right] != rr_realign$ref[idx_right] )  > 0
 
-            has_mismatch_at_left =  sum( rr_realign$read[idx_left]  != rr_realign$ref[idx_left] ) > 0
-            has_mismatch_at_right = sum( rr_realign$read[idx_right] != rr_realign$ref[idx_right] )  > 0
+                if( has_mismatch_at_left | has_mismatch_at_right ){
+                    # dels extend the reference space covered by the read
+                    #sum_of_deletions = sum( read$cigar_ranges$width[ read$cigar_ranges$cigar_code=="D"] )
+                    sum_of_deletions=0 # modified because we're restricting this to just one range with type M
+                    # extend range for reference to be larger than read by near_bound, only in direction of
+                    ref_start = rr_realign$pos[1] - sum_of_deletions
+                    ref_end = rr_realign$pos[ dim(rr_realign)[1] ] + sum_of_deletions
+                    if( realign_side=="left" | realign_side == "both" ){
+                        ref_start = ref_start - ( near_bound * 3 ) # size of gap may be larger than interior bound for mutation
+                    }
+                    if( realign_side=="right" | realign_side == "both" ){
+                        ref_end = ref_end + ( near_bound * 3 )
+                    }
+                    seq_ref = AW_seq( align_window, pos_start = ref_start, pos_end = ref_end)
+                    pwa = pairwiseAlignment( DNAString( paste( rr_realign$read, collapse="" ) ),
+                                             seq_ref, gapOpening=2, gapExtension=1,
+                                             patternQuality = PhredQuality( as.integer( rr_realign$qual  ) ),
+                                             subjectQuality = PhredQuality( as.integer( rep(40, length(seq_ref) ) ) ),
+                                             type="global-local")
 
-            if( has_mismatch_at_left | has_mismatch_at_right ){
-                # dels extend the reference space covered by the read
-                #sum_of_deletions = sum( read$cigar_ranges$width[ read$cigar_ranges$cigar_code=="D"] )
-                sum_of_deletions=0 # modified because we're restricting this to just one range with type M
-                # extend range for reference to be larger than read by near_bound, only in direction of
-                ref_start = rr_realign$pos[1] - sum_of_deletions
-                ref_end = rr_realign$pos[ dim(rr_realign)[1] ] + sum_of_deletions
-                if( realign_side=="left" | realign_side == "both" ){
-                    ref_start = ref_start - ( near_bound * 3 ) # size of gap may be larger than interior bound for mutation
-                }
-                if( realign_side=="right" | realign_side == "both" ){
-                    ref_end = ref_end + ( near_bound * 3 )
-                }
-                seq_ref = AW_seq( align_window, pos_start = ref_start, pos_end = ref_end)
-                pwa = pairwiseAlignment( DNAString( paste( rr_realign$read, collapse="" ) ),
-                                         seq_ref, gapOpening=2, gapExtension=1,
-                                         patternQuality = PhredQuality( as.integer( rr_realign$qual  ) ),
-                                         subjectQuality = PhredQuality( as.integer( rep(40, length(seq_ref) ) ) ),
-                                         type="global-local")
+                    vec_full = strsplit(toString( aligned( pwa ) ), "")[[1]]    # aligned including leading/trailing
+                    pos_start = ref_start + min( which( vec_full != "-" ) ) - 1 # first aligned pos with ACGT
 
-                vec_full = strsplit(toString( aligned( pwa ) ), "")[[1]]      # aligned including leading/trailing
-                pos_start = ref_start + min( which( vec_full != "-" ) ) - 1 # first aligned pos with ACGT
-
-                vec_read = strsplit( as.character( pattern(pwa) ), "")[[1]] # aligned (trimmed)
-                vec_ref = strsplit( as.character( subject(pwa) ), "")[[1]]  # reference (trimmed)
-                rr_combined = data.frame(
-                    pos = pos_start : ( pos_start + length(vec_ref) - 1 ),
-                    read = vec_read,
-                    ref = vec_ref,
-                    qual = rep(0, length(vec_read)), stringsAsFactors = FALSE )
-                if( length( which( rr_combined$read != "-" ) ) == length( rr_realign$qual)){
-                    rr_combined$qual[ which( rr_combined$read != "-" ) ] = rr_realign$qual
-                    # low-quality nucleotides that are called inserts rewritten as a mismatch
-                    # to avoid preserving insert when we call rebuild_read_from_realignment()
-                    idx_lowqual_inserts = which( rr_combined$read != "-" & rr_combined$ref=="-" & rr_combined$qual < min_nt_qual)
-                    if( length( idx_lowqual_inserts>0 )){
-                        for(i in 1:length( idx_lowqual_inserts )){
-                            rr_combined$ref[ idx_lowqual_inserts[i] ] = AW_get_nucleotide(align_window,
-                                                                                          rr_combined$pos[ idx_lowqual_inserts[i]] )
+                    vec_read = strsplit( as.character( pattern(pwa) ), "")[[1]] # aligned (trimmed)
+                    vec_ref = strsplit( as.character( subject(pwa) ), "")[[1]]  # reference (trimmed)
+                    rr_combined = data.frame(
+                        pos = pos_start : ( pos_start + length(vec_ref) - 1 ),
+                        read = vec_read,
+                        ref = vec_ref,
+                        qual = rep(0, length(vec_read)), stringsAsFactors = FALSE )
+                    if( length( which( rr_combined$read != "-" ) ) == length( rr_realign$qual)){
+                        rr_combined$qual[ which( rr_combined$read != "-" ) ] = rr_realign$qual
+                        # low-quality nucleotides that are called inserts rewritten as a mismatch
+                        # to avoid preserving insert when we call rebuild_read_from_realignment()
+                        idx_lowqual_inserts = which( rr_combined$read != "-" & rr_combined$ref=="-" & rr_combined$qual < min_nt_qual)
+                        if( length( idx_lowqual_inserts>0 )){
+                            for(i in 1:length( idx_lowqual_inserts )){
+                                rr_combined$ref[ idx_lowqual_inserts[i] ] = AW_get_nucleotide(align_window,
+                                                                                              rr_combined$pos[ idx_lowqual_inserts[i]] )
+                            }
                         }
+                    }else{
+                        # there's an edge case where additional deletions are placed in the newly aligned read, and we can't
+                        # be sure where to reassign the quality scores. This workaround is not ideal but it prevents a warning
+                        # that can otherwise sink us
+                        rr_combined$qual[ which( rr_combined$read != "-" ) ] = median(rr_realign$qual)
                     }
-                }else{
-                    # there's an edge case where additional deletions are placed in the newly aligned read, and we can't
-                    # be sure where to reassign the quality scores. This workaround is not ideal but it prevents a warning
-                    # that can otherwise sink us
-                    rr_combined$qual[ which( rr_combined$read != "-" ) ] = median(rr_realign$qual)
-                }
-                n_new_inserts = sum( rr_combined$read != "-" & rr_combined$ref=="-" & rr_combined$qual >= min_nt_qual)
+                    n_new_inserts = sum( rr_combined$read != "-" & rr_combined$ref=="-" & rr_combined$qual >= min_nt_qual)
 
-                n_match_post = sum( rr_combined$read == rr_combined$ref |
-                                        (rr_combined$read != "-" & rr_combined$qual < min_nt_qual) )
-                if( n_match_post > n_match_pre &
-                    (n_new_inserts==0 | allow_insertions_in_realign) ){
-                    read = rebuild_read_from_realignment( read, rr_combined )
-                    read$cigar_ranges = rbind( read$cigar_ranges, cigar_preserve )
-                    #read$cigar_ranges = read$cigar_ranges[order( read$cigar_ranges$start ), ]
-                    read$cigar_ranges = read$cigar_ranges[order( read$cigar_ranges$ref_start ), ]
-                    pos_cur=1
-                    for(i in 1:dim(read$cigar_ranges)[1]){
-                        read$cigar_ranges$start[i] = pos_cur
-                        if( read$cigar_ranges$cigar_code[i] != "D"){
-                            read$cigar_ranges$end[i] = pos_cur + read$cigar_ranges$width[i] - 1
-                            pos_cur = read$cigar_ranges$end[i] + 1
-                        }else{
-                            read$cigar_ranges$end[i] = read$cigar_ranges$start[i]
+                    n_match_post = sum( rr_combined$read == rr_combined$ref |
+                                            (rr_combined$read != "-" & rr_combined$qual < min_nt_qual) )
+                    if( n_match_post > n_match_pre &
+                        (n_new_inserts==0 | allow_insertions_in_realign) ){
+                        read = rebuild_read_from_realignment( read, rr_combined )
+                        read$cigar_ranges = rbind( read$cigar_ranges, cigar_preserve )
+                        #read$cigar_ranges = read$cigar_ranges[order( read$cigar_ranges$start ), ]
+                        read$cigar_ranges = read$cigar_ranges[order( read$cigar_ranges$ref_start ), ]
+                        pos_cur=1
+                        for(i in 1:dim(read$cigar_ranges)[1]){
+                            read$cigar_ranges$start[i] = pos_cur
+                            if( read$cigar_ranges$cigar_code[i] != "D"){
+                                read$cigar_ranges$end[i] = pos_cur + read$cigar_ranges$width[i] - 1
+                                pos_cur = read$cigar_ranges$end[i] + 1
+                            }else{
+                                read$cigar_ranges$end[i] = read$cigar_ranges$start[i]
+                            }
                         }
-                    }
-                    read$pos = min( read$cigar_ranges$ref_start[ read$cigar_ranges$cigar_code  != "S" ] )
-                    read$has_realigned_read_end = TRUE
-                    read$has_realigned_softclipped = TRUE
-                    if( realign_side == "right" ){
-                        read$has_realigned_softclipped_right = TRUE
-                    }
-                    if( realign_side == "left" ){
-                        read$has_realigned_softclipped_left = TRUE
+                        read$pos = min( read$cigar_ranges$ref_start[ read$cigar_ranges$cigar_code  != "S" ] )
+                        read$has_realigned_read_end = TRUE
+                        read$has_realigned_softclipped = TRUE
+                        if( realign_side == "right" ){
+                            read$has_realigned_softclipped_right = TRUE
+                        }
+                        if( realign_side == "left" ){
+                            read$has_realigned_softclipped_left = TRUE
+                        }
                     }
                 }
             }
         }
-    }
+    }, error = function(e){ print( e$message ) } )
     read
 }
 
@@ -681,20 +715,24 @@ realign_to_ref_with_pathogenic_deletion = function( read, pathogenic, gr_pathoge
     ref_minus_path_3p = AW_vec( align_window,
                                 pos_start = pathogenic$pos + width(gr_pathogenic),
                                 pos_end = pathogenic$pos + width(gr_pathogenic) + length(read$seq) )
-    ref_minus_path = DNAString( paste( c(ref_minus_path_5p, ref_minus_path_3p), collapse="", sep="" ) )
-    pwa = realign_sequence_in_region( ref_pos = pathogenic$pos - length(read$seq) + 1,
-                                ref_seq = ref_minus_path,
-                                query_str = as.character(read$seq) )
-    # assess whether a perfct match to the pathogenic mutation is present
-    d=data.frame( aligned=strsplit( as.character( aligned(pwa$pwa) ), "" )[[1]],
-                  ref=strsplit( as.character( ref_minus_path ), "" )[[1]],
-                pos = pathogenic$pos - length(read$seq) + 1 : width( aligned(pwa$pwa) )
-                )
+    if( !is.null(ref_minus_path_5p) & !is.null(ref_minus_path_3p) ){
+        ref_minus_path = DNAString( paste( c(ref_minus_path_5p, ref_minus_path_3p), collapse="", sep="" ) )
+        pwa = realign_sequence_in_region( ref_pos = pathogenic$pos - length(read$seq) + 1,
+                                          ref_seq = ref_minus_path,
+                                          query_str = as.character(read$seq) )
+        # assess whether a perfct match to the pathogenic mutation is present
+        d=data.frame( aligned=strsplit( as.character( aligned(pwa$pwa) ), "" )[[1]],
+                      ref=strsplit( as.character( ref_minus_path ), "" )[[1]],
+                      pos = pathogenic$pos - length(read$seq) + 1 : width( aligned(pwa$pwa) )
+        )
 
-    path_pos_start = pathogenic$pos
-    path_pos_end = path_pos_start + length(gr_pathogenic) - 1
-    idx_path = which( d$pos %in% path_pos_start:path_pos_end)
-    as.character( d$aligned[ idx_path ]) == as.character(d$ref[ idx_path ] )
+        path_pos_start = pathogenic$pos
+        path_pos_end = path_pos_start + length(gr_pathogenic) - 1
+        idx_path = which( d$pos %in% path_pos_start:path_pos_end)
+        as.character( d$aligned[ idx_path ]) == as.character(d$ref[ idx_path ] )
+    }else{
+        FALSE
+    }
 }
 
 #' Classify a read to assess the evidence that it contains a reversion
@@ -844,9 +882,13 @@ assess_reversion = function( read, transcript, pathogenic, align_window, min_nt_
                 read$evidence = "reversion_read_deletion_spans_pathogenic_variant"
             }else if( read$total_frameshift != 0 ){
                 AA_sequence = aardvark::translate_cigar( transcript, read, pathogenic, min_nt_qual )
-                transcript_is_inframe = stringr::str_count( as.character( AA_sequence ), stringr::fixed("*") ) == 1
-                if( transcript_is_inframe ){
-                    read$evidence = "reversion_read_does_not_include_pathogenic_variant"
+                if( is.null(AA_sequence)){
+                    read$evidence = "read_could_not_be_evaluated_due_to_sequence_content"
+                }else{
+                    transcript_is_inframe = stringr::str_count( as.character( AA_sequence ), stringr::fixed("*") ) == 1
+                    if( transcript_is_inframe ){
+                        read$evidence = "reversion_read_does_not_include_pathogenic_variant"
+                    }
                 }
             }
         }
@@ -854,9 +896,13 @@ assess_reversion = function( read, transcript, pathogenic, align_window, min_nt_
         # missense mutations can only be reverted by deleting them or by a missense that
         # directly alters the mutation to eliminate a stop codon.
         AA_sequence = aardvark::translate_cigar( transcript, read, pathogenic, min_nt_qual)
-        transcript_is_inframe = stringr::str_count( as.character( AA_sequence ), stringr::fixed("*") ) == 1
-        if( transcript_is_inframe ){
-            read$evidence = "reversion_read_includes_pathogenic_variant"
+        if( is.null(AA_sequence)){
+            read$evidence = "read_could_not_be_evaluated_due_to_sequence_content"
+        }else{
+            transcript_is_inframe = stringr::str_count( as.character( AA_sequence ), stringr::fixed("*") ) == 1
+            if( transcript_is_inframe ){
+                read$evidence = "reversion_read_includes_pathogenic_variant"
+            }
         }
     }
 
@@ -905,6 +951,10 @@ assess_reversion = function( read, transcript, pathogenic, align_window, min_nt_
 #' If both read and pathogenic are passed, the impact of both alterations can affect the amino
 #' acid sequence. Alterations obsered in the read supercede alterations in pathogenic if the read overlaps
 #' the pathogenic alteration.
+#'
+#' If the read cannot be evaluated (e.g. because it contains a nucleotide coded as N)
+#' translate_cigar returns NULL
+#'
 #' @param transcript an aardvark::TranscriptData object for affected gene
 #' @param read aardvark::Read object to evaluate
 #' @param pathogenic aardvark::Mutation object describing a pathogenic mutation (optional)
@@ -923,6 +973,8 @@ translate_cigar = function( transcript, read, pathogenic=NULL, min_nt_qual ){
     # see the documentation for rebuild_read_from_realignment
     # after I process a cigar_range with an insertion, the genomic positions in any subsequent cigar_range values
     # are now out of date so the wrong nucleotides could get overwritten.
+
+    # start at 6800
 
     for( i in 1:dim(read$cigar_ranges)[1] ){
         if( read$cigar_ranges$cigar_code[i] == "D"){
@@ -974,6 +1026,10 @@ translate_cigar = function( transcript, read, pathogenic=NULL, min_nt_qual ){
         read_end = max( read$positions )
         mut_start = pathogenic$cigar_ranges$ref_start[1]
         mut_end = pathogenic$cigar_ranges$ref_end[1]
+        if( pathogenic$mutation_class=="insertion"){
+            mut_start = pathogenic$pos
+            mut_end = mut_start + pathogenic$total_frameshift
+        }
         if( !( ( mut_end <= read_end  & mut_end >= read_start ) ||
                ( mut_start >= read_start & mut_start <= read_end ) ) ){
             # if read ref_start, ref_end doesn't overlap pathogenic
@@ -984,7 +1040,8 @@ translate_cigar = function( transcript, read, pathogenic=NULL, min_nt_qual ){
                 #ts = ts[idx_keep,]
                 ts$keep[idx_remove] = FALSE
             }else if( pathogenic$cigar_ranges$cigar_code[1] == "I" ){
-                seq_to_insert = strsplit( as.character( pathogenic$seq ), "" )[[1]]
+                #seq_to_insert = strsplit( as.character( pathogenic$seq ), "" )[[1]]
+                seq_to_insert = pathogenic$location$mut
                 idx_split = which( ts$pos == mut_start )
                 ts_pre = ts[1:(idx_split-1),]
                 ts_post = ts[ idx_split : dim(ts)[1],]
@@ -1027,7 +1084,13 @@ translate_cigar = function( transcript, read, pathogenic=NULL, min_nt_qual ){
             final_seq = final_seq[ 1 : ( length(final_seq) - length(final_seq) %% 3 ) ]
         }
         final_seq = DNAString( paste( final_seq, collapse="") )
-        Biostrings::translate( DNAString( paste( final_seq, collapse="") ) )
+        # error can occur if e.g. sequence has N
+        tryCatch({
+            Biostrings::translate( DNAString( paste( final_seq, collapse="") ) )
+        }, error = function(e){
+            message( paste("Error translating sequence in read", read$qname) )
+            NULL
+            })
     }
 }
 

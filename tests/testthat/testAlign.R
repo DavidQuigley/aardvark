@@ -16,12 +16,16 @@ test_that("alignment works", {
 # Testing code for annotate_read()
 ################################################################################################################
 
-
 GM = aardvark::Mutation( chrom="chr13", pos=32339657, seq_ref = "CTT", seq_alt = "C", transcript=transcript_BRCA2)
 gr_pathogenic = aardvark::genomicRangesFromMutation(GM)
 AW = aardvark::AlignmentWindow( BSgenome.Hsapiens.UCSC.hg38, chrom="chr13",
                                 GM$pos - 3000, GM$pos + 3000,
                                 min_length_for_homopolymer = 5   )
+
+
+# test that requesting a site outside of the alignment window returns NULL
+expect_null( AW_vec( AW, 100, 200) )
+expect_null( AW_vec( AW, 40000000, 40000010) )
 
 # temporarily commented out until I work out how to import both hg38 and hg19
 # without triggering a replacing previous import warning
@@ -731,5 +735,27 @@ rd = aardvark::Read( qname="M02686:40:000000000-AWR5W:1:1117:17683:24081",
 rd=aardvark::realign_read( rd, AW, pathogenic_mutation=GM, gr_pathogenic=gr_pathogenic, allow_insertions_in_realign=TRUE)
 rd = aardvark::assess_reversion(rd, transcript_BRCA1, pathogenic=GM, align_window=AW, min_nt_qual=20, gr_pathogenic = gr_pathogenic, gr_exclude = AW$homopolymer_regions)
 expect_equal( rd$evidence, "reversion_read_includes_pathogenic_variant")
+
+
+# Test if soft clip is mislabeled and should be match, that it gets converted in place to a match
+GM = aardvark::Mutation( chrom="chr13", pos=32331011, seq_ref = "AAG", seq_alt = "A", transcript=transcript_BRCA2)
+gr_pathogenic = aardvark::genomicRangesFromMutation(GM)
+AW = aardvark::AlignmentWindow( Hsapiens_version = BSgenome.Hsapiens.UCSC.hg38,
+                                chrom="chr13",
+                                window_start = 32331011-1000,
+                                window_end = 32331011+1000)
+
+rd = aardvark::Read( qname="testread",
+                     cigar="30M52S",
+                     chrom="chr13",
+                     pos=32330919,
+                     seq=DNAString("AATGTGAAAAGCTATTTTTCCAATCATGATGAAAGTCTGAAGAAAAATGATAGATTTATCGCTTCTGTGACAGACAGTGAAA"),
+                     qual=rep(37, 82))
+rd=aardvark::realign_read( rd, AW, pathogenic_mutation=GM, gr_pathogenic=gr_pathogenic, allow_insertions_in_realign=TRUE)
+expect_equal( dim(rd$cigar_ranges)[1], 2 )
+expect_equal( rd$cigar_ranges$cigar_code[1], "M")
+expect_equal( rd$cigar_ranges$ref_start[1], 32330919)
+expect_equal( rd$cigar_ranges$ref_start[2], 32330919+30 )
+expect_equal( rd$cigar_ranges$cigar_code[2], "M")
 
 } )

@@ -25,3 +25,7 @@ If both read and pathogenic are passed, the impact of both alterations can affec
 acid sequence. Alterations obsered in the read supercede alterations in pathogenic if the read overlaps
 the pathogenic alteration.
 }
+\details{
+If the read cannot be evaluated (e.g. because it contains a nucleotide coded as N)
+translate_cigar returns NULL
+}
