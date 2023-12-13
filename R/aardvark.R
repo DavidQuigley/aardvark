@@ -974,8 +974,6 @@ translate_cigar = function( transcript, read, pathogenic=NULL, min_nt_qual ){
     # after I process a cigar_range with an insertion, the genomic positions in any subsequent cigar_range values
     # are now out of date so the wrong nucleotides could get overwritten.
 
-    # start at 6800
-
     for( i in 1:dim(read$cigar_ranges)[1] ){
         if( read$cigar_ranges$cigar_code[i] == "D"){
             idx_remove = which( ts$pos[ts$keep] >= read$cigar_ranges$ref_start[i]  &
@@ -1028,7 +1026,7 @@ translate_cigar = function( transcript, read, pathogenic=NULL, min_nt_qual ){
         mut_end = pathogenic$cigar_ranges$ref_end[1]
         if( pathogenic$mutation_class=="insertion"){
             mut_start = pathogenic$pos
-            mut_end = mut_start + pathogenic$total_frameshift
+            mut_end = mut_start + pathogenic$total_frameshift - 1
         }
         if( !( ( mut_end <= read_end  & mut_end >= read_start ) ||
                ( mut_start >= read_start & mut_start <= read_end ) ) ){
@@ -1051,6 +1049,7 @@ translate_cigar = function( transcript, read, pathogenic=NULL, min_nt_qual ){
                                            exon_id = rep( ts$exon_id[idx_split], length(seq_to_insert)),
                                            strand = rep( ts$strand[idx_split], length(seq_to_insert)),
                                            is_splice = rep( ts$is_splice[ idx_split], length(seq_to_insert)),
+                                           keep = rep( TRUE, length(seq_to_insert)),
                                            stringsAsFactors=FALSE)
                 ts = rbind( ts_pre, ts_to_insert, ts_post )
             }else{
@@ -1266,7 +1265,8 @@ consolidate_ambiguous_candidates = function( df_sum, transcript ){
                 del_end_2 = candidates$del_end[ idx_match[2] ]
                 offset = abs( del_start_1 - del_start_2 )
 
-                if( length( offset) < candidates$del_length[i] ){
+                if( offset < candidates$del_length[i] ){
+                #if( length( offset) < candidates$del_length[i] ){
                     deleted_1 = transcript$nucleotides$seq[ transcript$nucleotides$pos>=del_start_1 & transcript$nucleotides$pos<=del_end_1 ]
                     deleted_2 = transcript$nucleotides$seq[ transcript$nucleotides$pos>=del_start_2 & transcript$nucleotides$pos<=del_end_2 ]
                     idx_shifted = 1:length(deleted_2)
