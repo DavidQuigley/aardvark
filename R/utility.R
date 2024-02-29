@@ -8,7 +8,11 @@ hsh_new = function(){
 #' @param H hash object
 #' @param key key to check
 hsh_in = function(H, key){
-    exists(key, H)
+    if( key == "" ){
+        FALSE
+    }else{
+        exists(key, H)
+    }
 }
 
 #' Return value of key in hash H

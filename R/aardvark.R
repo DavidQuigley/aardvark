@@ -892,7 +892,7 @@ assess_reversion = function( read, transcript, pathogenic, align_window, min_nt_
                 }
             }
         }
-    }else if( pathogenic$mutation_class == "missense" ){
+    }else if( pathogenic$mutation_class == "mismatch" ){
         # missense mutations can only be reverted by deleting them or by a missense that
         # directly alters the mutation to eliminate a stop codon.
         AA_sequence = aardvark::translate_cigar( transcript, read, pathogenic, min_nt_qual)
@@ -901,7 +901,21 @@ assess_reversion = function( read, transcript, pathogenic, align_window, min_nt_
         }else{
             transcript_is_inframe = stringr::str_count( as.character( AA_sequence ), stringr::fixed("*") ) == 1
             if( transcript_is_inframe ){
-                read$evidence = "reversion_read_includes_pathogenic_variant"
+                # if pathogenic is mismatch and there are no indels, we can't
+                # distinguish between WT and reversion via SNV of the original mutation
+                # we'll miss novel mismatches that eliminate a stop codon but these could
+                # be SNPs so it's not trivial to call them as novel mutations without germline
+                has_indel = FALSE
+                for( i in 1:dim( read$cigar_ranges )[1] ){
+                    if( read$cigar_ranges$cigar_code[i]=="D" | read$cigar_ranges$cigar_code[i]=="I" ){
+                        has_indel=TRUE
+                    }
+                }
+                if( has_indel ){
+                    read$evidence = "reversion_read_includes_pathogenic_variant"
+                }else{
+                    read$evidence = "read_not_informative"
+                }
             }
         }
     }

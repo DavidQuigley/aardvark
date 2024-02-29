@@ -10,13 +10,11 @@ License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
 Imports:
-    optparse,
     S4Vectors,
     Rsamtools,
     Biostrings,
     stringr,
     BSgenome.Hsapiens.UCSC.hg38,
-    BSgenome.Hsapiens.UCSC.hg19,
     GenomicAlignments,
     GenomicRanges,
     Gviz,
@@ -24,11 +22,13 @@ Imports:
     IRanges,
     biomaRt,
     EnsDb.Hsapiens.v86,
-    EnsDb.Hsapiens.v75,
     testthat
-Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.2.3
-Suggests: 
+Suggests:
+    BSgenome.Hsapiens.UCSC.hg19,
+    EnsDb.Hsapiens.v75,
+    optparse,
     knitr,
     rmarkdown
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.2.3
 VignetteBuilder: knitr, rmarkdown
